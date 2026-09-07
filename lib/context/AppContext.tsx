@@ -8,7 +8,10 @@ import {
   ComplianceRenewal, 
   IncentiveScheme, 
   PlatformNotification,
-  ApprovalRoadmapItem 
+  ApprovalRoadmapItem,
+  UnifiedInspectionProposal,
+  EscalationItem,
+  RegulatoryRule
 } from '../types';
 import { 
   INITIAL_PROJECT, 
@@ -17,6 +20,12 @@ import {
   INITIAL_INCENTIVES, 
   INITIAL_NOTIFICATIONS 
 } from '../data/mockData';
+import { 
+  INITIAL_UNIFIED_INSPECTION, 
+  INITIAL_ESCALATIONS, 
+  INITIAL_REGULATORY_RULES, 
+  INITIAL_OFFICER_WORKLOAD 
+} from '../data/officerMockData';
 import { DEPARTMENTS } from '../data/departments';
 
 export interface ToastMessage {
@@ -32,6 +41,7 @@ interface AppContextType {
   selectedOfficerDept: string;
   setSelectedOfficerDept: (deptId: string) => void;
   project: Project;
+  projectApprovals: ApprovalRoadmapItem[];
   setProject: React.Dispatch<React.SetStateAction<Project>>;
   vaultDocuments: VaultDocument[];
   addVaultDocument: (doc: Omit<VaultDocument, 'id'>) => void;
@@ -47,7 +57,21 @@ interface AppContextType {
   officerReject: (approvalId: string, reason: string) => void;
   officerRaiseQuery: (approvalId: string, subject: string, description: string, docs: string[]) => void;
   officerScheduleInspection: (approvalId: string, date: string, type: 'joint_site_visit' | 'safety_compliance') => void;
+  simulatePrerequisiteApproval: (approvalId: string) => void;
+  startApplication: (approvalId: string, docsUsed: string[]) => void;
+  submitSmartRenewal: (renewalId: string, updatedFields?: Record<string, string>) => void;
   registerProject: (newProjectData: Omit<Project, 'id' | 'referenceNo' | 'progress' | 'createdAt' | 'updatedAt'>) => Project;
+  unifiedInspection: UnifiedInspectionProposal;
+  proposeUnifiedInspection: (date: string, time: string) => void;
+  submitDepartmentInspectionChecklist: (dept: 'fire' | 'pollution' | 'factory', checklist: { id: string; item: string; verified: boolean; remarks?: string }[], officerReport: { observations: string; remarks: string; recommendation: 'Approve' | 'Reject' | 'Request More Info' }) => void;
+  escalations: EscalationItem[];
+  addEscalationRemark: (id: string, remark: string) => void;
+  escalateItem: (itemOrId: string | Partial<EscalationItem>) => void;
+  regulatoryRules: RegulatoryRule[];
+  toggleRegulatoryRule: (id: string) => void;
+  addRegulatoryRule: (rule: Omit<RegulatoryRule, 'id'>) => void;
+  officerWorkload: typeof INITIAL_OFFICER_WORKLOAD;
+  rebalanceOfficerWorkload: (sourceOfficerId: string, targetOfficerId: string, count: number) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -61,8 +85,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [incentives, setIncentives] = useState<IncentiveScheme[]>(INITIAL_INCENTIVES);
   const [notifications, setNotifications] = useState<PlatformNotification[]>(INITIAL_NOTIFICATIONS);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [unifiedInspection, setUnifiedInspection] = useState<UnifiedInspectionProposal>(INITIAL_UNIFIED_INSPECTION);
+  const [escalations, setEscalations] = useState<EscalationItem[]>(INITIAL_ESCALATIONS);
+  const [regulatoryRules, setRegulatoryRules] = useState<RegulatoryRule[]>(INITIAL_REGULATORY_RULES);
+  const [officerWorkload, setOfficerWorkload] = useState(INITIAL_OFFICER_WORKLOAD);
 
-  // Load from localStorage if present on client
   useEffect(() => {
     try {
       const savedRole = localStorage.getItem('samanvay_role');
@@ -92,7 +119,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setToasts(prev => [...prev, { id, title, message, type }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, 5000);
+    }, 6000);
   };
 
   const removeToast = (id: string) => {
@@ -101,15 +128,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const recalculateProgress = (approvals: ApprovalRoadmapItem[]) => {
     const total = approvals.length;
-    const approved = approvals.filter(a => a.status === 'approved').length;
-    const inProgress = approvals.filter(a => a.status === 'in_progress').length;
+    const completed = approvals.filter(a => a.status === 'approved').length;
+    const inProgress = approvals.filter(a => a.status === 'in_progress' || a.status === 'submitted' || a.status === 'inspection_scheduled').length;
     const actionRequired = approvals.filter(a => a.status === 'action_required').length;
     const waiting = approvals.filter(a => a.status === 'waiting').length;
-    const upcoming = approvals.filter(a => a.status === 'rejected').length;
+    const upcoming = approvals.filter(a => a.status === 'can_apply_now').length;
 
     return {
       total,
-      completed: approved,
+      completed,
       inProgress,
       actionRequired,
       waiting,
@@ -126,10 +153,194 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // LIVE DEMO AUTO-UNLOCK: When a prerequisite is approved, downstream items automatically flip to Can Apply Now
+  const simulatePrerequisiteApproval = (approvalId: string) => {
+    setProject(prev => {
+      let approvedItemName = '';
+      const updatedApprovals = prev.approvals.map(app => {
+        if (app.id === approvalId) {
+          approvedItemName = app.approvalName;
+          return {
+            ...app,
+            status: 'approved' as const,
+            statusLabel: 'Approved',
+            canApplyNow: false,
+            certificateNo: `GOV/CERT/${Date.now().toString().slice(-5)}`,
+            slaDaysRemaining: 0,
+            activityLogs: [
+              ...(app.activityLogs || []),
+              {
+                date: new Date().toISOString().split('T')[0],
+                actor: 'Government Officer',
+                action: 'Clearance Granted (Simulated Verification)',
+              },
+            ],
+          };
+        }
+        return app;
+      });
+
+      const approvedIds = new Set(
+        updatedApprovals.filter(a => a.status === 'approved').map(a => a.id)
+      );
+
+      const newlyUnlocked: { name: string; shortMsg: string }[] = [];
+
+      const fullyUpdated = updatedApprovals.map(app => {
+        if (app.status === 'waiting' && app.dependencies.length > 0) {
+          const allMet = app.dependencies.every(depId => approvedIds.has(depId));
+          if (allMet) {
+            const shortApproved = (approvalId === 'SMV/2026/HR/GGM/APP-00106' || approvedItemName.includes('SPCB')) 
+              ? 'SPCB CTE' 
+              : approvedItemName;
+            const shortApp = (app.id === 'SMV/2026/HR/GGM/APP-00108' || app.approvalCode === 'SFES-NOC-PROV')
+              ? 'Fire Provisional NOC'
+              : app.approvalName;
+
+            newlyUnlocked.push({
+              name: app.approvalName,
+              shortMsg: `${shortApp} is now available because ${shortApproved} has been approved.`
+            });
+
+            return {
+              ...app,
+              status: 'can_apply_now' as const,
+              statusLabel: 'Can Apply Now',
+              canApplyNow: true,
+              unlockReason: `Unlocked because prerequisite ${approvedItemName} has been approved.`,
+              activityLogs: [
+                ...(app.activityLogs || []),
+                {
+                  date: new Date().toISOString().split('T')[0],
+                  actor: 'System Rule Engine',
+                  action: `Unlocked automatically after ${approvedItemName} approval`,
+                },
+              ],
+            };
+          }
+        }
+        return app;
+      });
+
+      const updatedProj = {
+        ...prev,
+        approvals: fullyUpdated,
+        progress: recalculateProgress(fullyUpdated),
+        updatedAt: new Date().toISOString(),
+      };
+
+      updateProjectAndPersist(updatedProj);
+
+      // Trigger high-priority toasts & notifications for newly unlocked items
+      if (newlyUnlocked.length > 0) {
+        newlyUnlocked.forEach(item => {
+          showToast(
+            'Dependency Cleared: Approval Unlocked!',
+            item.shortMsg,
+            'success'
+          );
+
+          setNotifications(nPrev => [
+            {
+              id: `notif-${Date.now()}`,
+              title: `${item.name} is now available`,
+              description: item.shortMsg,
+              timeAgo: 'Just now',
+              timestamp: new Date().toISOString(),
+              type: 'dependency',
+              read: false,
+              actionLabel: 'Start Application',
+              actionUrl: `/applicant/roadmap/${prev.id}`,
+            },
+            ...nPrev,
+          ]);
+        });
+      } else {
+        showToast(
+          'Prerequisite Clearance Granted',
+          `${approvedItemName} has been marked Approved.`,
+          'info'
+        );
+      }
+
+      return updatedProj;
+    });
+  };
+
+  // Start Application flow: transitions item from Can Apply Now to Under Review
+  const startApplication = (approvalId: string, docsUsed: string[]) => {
+    setProject(prev => {
+      let targetName = '';
+      const updatedApprovals = prev.approvals.map(app => {
+        if (app.id === approvalId) {
+          targetName = app.approvalName;
+          return {
+            ...app,
+            status: 'in_progress' as const,
+            statusLabel: 'Under Review',
+            canApplyNow: false,
+            appliedDate: new Date().toISOString().split('T')[0],
+            documentsSubmitted: docsUsed,
+            authorityTracker: {
+              lastAuthorityAction: 'Application Formally Lodged',
+              lastAuthorityActionDate: new Date().toISOString().split('T')[0],
+              applicantResponse: `${docsUsed.length} documents attached from verified vault`,
+              applicantResponseDate: new Date().toISOString().split('T')[0],
+              currentState: 'In Departmental Scrutiny Queue',
+              expectedNextAction: 'Initial Scrutiny & Officer Assignment',
+              responsibleOfficer: 'Nodal Scrutiny Cell',
+              slaRemainingDays: app.slaDays,
+            },
+            timelineEvents: [
+              ...(app.timelineEvents || []),
+              {
+                id: `tl-${Date.now()}`,
+                stageName: 'Submitted to Department',
+                date: new Date().toISOString().split('T')[0],
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                actor: 'Applicant',
+                description: `Application lodged online using ${docsUsed.length} verified vault documents`,
+                isCompleted: true,
+                isCurrent: true,
+              },
+            ],
+            activityLogs: [
+              ...(app.activityLogs || []),
+              {
+                date: new Date().toISOString().split('T')[0],
+                actor: 'Applicant',
+                action: 'Online application submitted via Samanvay single window',
+              },
+            ],
+          };
+        }
+        return app;
+      });
+
+      const updatedProj = {
+        ...prev,
+        approvals: updatedApprovals,
+        progress: recalculateProgress(updatedApprovals),
+        updatedAt: new Date().toISOString(),
+      };
+      updateProjectAndPersist(updatedProj);
+
+      showToast(
+        'Application Lodged Successfully',
+        `Your application for ${targetName} is now lodged with the competent authority. Statutory SLA timer started.`,
+        'success'
+      );
+
+      return updatedProj;
+    });
+  };
+
   const resolveQuery = (approvalId: string, responseNotes: string, attachedDocs: string[]) => {
     setProject(prev => {
+      let targetName = '';
       const updatedApprovals = prev.approvals.map(app => {
         if (app.id === approvalId && app.query) {
+          targetName = app.approvalName;
           return {
             ...app,
             status: 'in_progress' as const,
@@ -143,8 +354,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 documents: attachedDocs,
               },
             },
+            authorityTracker: app.authorityTracker ? {
+              ...app.authorityTracker,
+              applicantResponse: responseNotes,
+              applicantResponseDate: new Date().toISOString().split('T')[0],
+              currentState: 'Applicant response received; under re-scrutiny',
+              expectedNextAction: 'Officer review of revised submission',
+            } : undefined,
+            timelineEvents: [
+              ...(app.timelineEvents || []),
+              {
+                id: `tl-${Date.now()}`,
+                stageName: 'Applicant Responded',
+                date: new Date().toISOString().split('T')[0],
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                actor: 'Applicant',
+                description: `Clarifications submitted: "${responseNotes.slice(0, 60)}..."`,
+                isCompleted: true,
+                isCurrent: true,
+              },
+            ],
             activityLogs: [
-              ...app.activityLogs,
+              ...(app.activityLogs || []),
               {
                 date: new Date().toISOString().split('T')[0],
                 actor: 'Applicant',
@@ -175,65 +406,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const officerApprove = (approvalId: string, remarks: string, certificateNo?: string) => {
-    const cert = certificateNo || `GOV/CLEARANCE/${Date.now().toString().slice(-6)}`;
-    setProject(prev => {
-      const updatedApprovals = prev.approvals.map(app => {
-        if (app.id === approvalId) {
-          return {
-            ...app,
-            status: 'approved' as const,
-            statusLabel: 'Approved',
-            certificateNo: cert,
-            slaDaysRemaining: 0,
-            activityLogs: [
-              ...app.activityLogs,
-              {
-                date: new Date().toISOString().split('T')[0],
-                actor: 'Government Officer',
-                action: 'Clearance Granted & Certificate Dispatched',
-                notes: remarks,
-              },
-            ],
-          };
-        }
-        return app;
-      });
-
-      // Unlock downstream items if all dependencies are now approved
-      const newlyApprovedIds = new Set(
-        updatedApprovals.filter(a => a.status === 'approved').map(a => a.id)
-      );
-
-      const resolvedApprovals = updatedApprovals.map(app => {
-        if (app.status === 'waiting' && app.dependencies.length > 0) {
-          const allDepsMet = app.dependencies.every(depId => newlyApprovedIds.has(depId));
-          if (allDepsMet) {
-            return {
-              ...app,
-              status: 'in_progress' as const,
-              statusLabel: 'Ready for Review',
-              unlockReason: 'All prerequisite statutory approvals completed.',
-            };
-          }
-        }
-        return app;
-      });
-
-      const updatedProj: Project = {
-        ...prev,
-        approvals: resolvedApprovals,
-        progress: recalculateProgress(resolvedApprovals),
-        updatedAt: new Date().toISOString(),
-      };
-      updateProjectAndPersist(updatedProj);
-      return updatedProj;
-    });
-
-    showToast(
-      'Clearance Order Issued',
-      `Approval granted with Certificate No. ${cert}. Downstream stages unlocked.`,
-      'success'
-    );
+    simulatePrerequisiteApproval(approvalId);
   };
 
   const officerReject = (approvalId: string, reason: string) => {
@@ -245,7 +418,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             status: 'rejected' as const,
             statusLabel: 'Rejected / Returned',
             activityLogs: [
-              ...app.activityLogs,
+              ...(app.activityLogs || []),
               {
                 date: new Date().toISOString().split('T')[0],
                 actor: 'Government Officer',
@@ -295,7 +468,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               status: 'pending_applicant' as const,
             },
             activityLogs: [
-              ...app.activityLogs,
+              ...(app.activityLogs || []),
               {
                 date: new Date().toISOString().split('T')[0],
                 actor: 'Government Officer',
@@ -338,13 +511,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               departments: [app.departmentName, 'State Fire & Emergency Services Department'],
               leadOfficer: 'Joint Inspection Team Leader',
               status: 'scheduled' as const,
+              checklist: [
+                { item: 'Boundary setbacks and clear fire lane width (min 6.0m)', verified: true },
+                { item: 'Effluent pipeline containment & sampling point', verified: true },
+                { item: 'Overhead HT electrical clearance height', verified: true },
+                { item: 'Emergency exit stairway illumination and signage', verified: false },
+              ],
             },
+            status: 'inspection_scheduled' as const,
+            statusLabel: 'Inspection Scheduled',
             activityLogs: [
-              ...app.activityLogs,
+              ...(app.activityLogs || []),
               {
                 date: new Date().toISOString().split('T')[0],
                 actor: 'Government Officer',
-                action: `Site inspection scheduled for ${date}`,
+                action: `Joint site visit scheduled for ${date}`,
               },
             ],
           };
@@ -363,9 +544,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     showToast(
-      'Inspection Scheduled',
-      `Joint site inspection logged for ${date}. Applicant notified.`,
+      'Joint Inspection Scheduled',
+      `Site inspection confirmed for ${date}. Multi-department teams coordinated.`,
       'info'
+    );
+  };
+
+  const submitSmartRenewal = (renewalId: string, updatedFields?: Record<string, string>) => {
+    setRenewals(prev => prev.map(ren => {
+      if (ren.id === renewalId) {
+        return {
+          ...ren,
+          status: 'valid' as const,
+          daysRemaining: 365,
+          expiryDate: '2027-10-08',
+          expiryIntelligenceMessage: 'Certificate is in good standing and renewed for another 365 days.',
+        };
+      }
+      return ren;
+    }));
+
+    showToast(
+      'Smart Renewal Application Dispatched',
+      'We reused your business and document details from previous filing. Renewal docket lodged with zero paperwork.',
+      'success'
     );
   };
 
@@ -404,6 +606,165 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
+  const proposeUnifiedInspection = (date: string, time: string) => {
+    setUnifiedInspection(prev => ({
+      ...prev,
+      status: 'confirmed',
+      proposedDate: date,
+      proposedTime: time,
+    }));
+    showToast(
+      'Unified Inspection Coordinated!',
+      `Coordinated site inspection proposed for ${date} at ${time}. 3 individual visits unified into 1.`,
+      'success'
+    );
+    setNotifications(nPrev => [
+      {
+        id: `notif-${Date.now()}`,
+        title: 'Unified Site Inspection Scheduled',
+        description: `Joint inspection across Fire, SPCB, and Labour departments confirmed for ${date} at ${time}.`,
+        timeAgo: 'Just now',
+        timestamp: new Date().toISOString(),
+        type: 'application_update',
+        read: false,
+        actionLabel: 'View Inspection Plan',
+        actionUrl: '/officer/inspections',
+      },
+      ...nPrev,
+    ]);
+  };
+
+  const submitDepartmentInspectionChecklist = (
+    dept: 'fire' | 'pollution' | 'factory',
+    checklist: { id: string; item: string; verified: boolean; remarks?: string }[],
+    officerReport: { observations: string; remarks: string; recommendation: 'Approve' | 'Reject' | 'Request More Info' }
+  ) => {
+    setUnifiedInspection(prev => {
+      const updatedChecklists = {
+        ...prev.parallelChecklists,
+        [dept]: checklist,
+      };
+      const updatedReports = {
+        ...prev.reports,
+        [dept]: {
+          ...officerReport,
+          officer: dept === 'fire' ? 'Chief Fire Officer M. S. Hooda' : dept === 'pollution' ? 'Er. R. K. Sharma (SEE)' : 'Shri A. P. Varma (Joint Director)',
+          submittedDate: new Date().toISOString().split('T')[0],
+        },
+      };
+
+      const updatedDepts = prev.participatingDepartments.map(d => {
+        if ((dept === 'fire' && d.departmentId === 'dept-fire') ||
+            (dept === 'pollution' && d.departmentId === 'dept-spcb') ||
+            (dept === 'factory' && d.departmentId === 'dept-labour')) {
+          return { ...d, checklistSubmitted: true };
+        }
+        return d;
+      });
+
+      return {
+        ...prev,
+        participatingDepartments: updatedDepts,
+        parallelChecklists: updatedChecklists,
+        reports: updatedReports,
+      };
+    });
+
+    showToast(
+      'Department Checklist & Report Submitted',
+      `Independent inspection findings recorded for ${dept.toUpperCase()}. Officer keeps full statutory discretion.`,
+      'success'
+    );
+  };
+
+  const addEscalationRemark = (id: string, remark: string) => {
+    setEscalations(prev => prev.map(esc => {
+      if (esc.id === id) {
+        return {
+          ...esc,
+          remarks: [...esc.remarks, `${new Date().toISOString().split('T')[0]}: ${remark}`],
+        };
+      }
+      return esc;
+    }));
+    showToast('Escalation Remark Logged', 'Official note added to escalation file.', 'info');
+  };
+
+  const escalateItem = (itemOrId: string | Partial<EscalationItem>) => {
+    if (typeof itemOrId === 'string') {
+      setEscalations(prev => prev.map(esc => {
+        if (esc.id === itemOrId) {
+          return {
+            ...esc,
+            severity: 'Critical' as const,
+            escalationLevel: 'Level 3: Apex Committee' as const,
+            remarks: [...esc.remarks, `${new Date().toISOString().split('T')[0]}: Escalated to Apex Committee`],
+          };
+        }
+        return esc;
+      }));
+    } else {
+      const newEsc: EscalationItem = {
+        id: `esc-${Date.now()}`,
+        applicationId: itemOrId.applicationId || 'SMV/2026/HR/GGM/APP-00106',
+        applicationName: itemOrId.applicationName || 'SPCB Regulatory Pipeline',
+        approvalCode: itemOrId.approvalCode || 'HSPCB-CTE',
+        departmentName: itemOrId.departmentName || 'State Pollution Control Board',
+        officerName: itemOrId.officerName || 'Directorate Technical Scrutiny Cell',
+        severity: itemOrId.severity || 'Critical',
+        reason: itemOrId.reason || 'Escalation triggered by administrative oversight',
+        timeOverdue: itemOrId.timeOverdue || 'Immediate',
+        escalationLevel: itemOrId.escalationLevel || 'Level 3: Apex Committee',
+        status: 'active',
+        remarks: [`${new Date().toISOString().split('T')[0]}: Escalated by Apex Administration`],
+      };
+      setEscalations(prev => [newEsc, ...prev]);
+    }
+    showToast('Escalated to Apex Committee', 'Immediate executive notice dispatched to Nodal Department Head.', 'warning');
+  };
+
+  const toggleRegulatoryRule = (id: string) => {
+    setRegulatoryRules(prev => prev.map(r => {
+      if (r.id === id) {
+        return {
+          ...r,
+          status: r.status === 'active' ? 'deprecated' : 'active',
+        };
+      }
+      return r;
+    }));
+    showToast('Rule Status Updated', 'Regulatory roadmap engine cache updated.', 'info');
+  };
+
+  const addRegulatoryRule = (newRule: Omit<RegulatoryRule, 'id'>) => {
+    const id = `rule-${Date.now()}`;
+    setRegulatoryRules(prev => [{ id, ...newRule }, ...prev]);
+    showToast('Regulatory Rule Added', `Rule for ${newRule.approvalName} is now active in rule engine.`, 'success');
+  };
+
+  const rebalanceOfficerWorkload = (sourceOfficerId: string, targetOfficerId: string, count: number) => {
+    setOfficerWorkload(prev => prev.map(off => {
+      if (off.id === sourceOfficerId) {
+        const newCount = Math.max(0, off.activeCases - count);
+        return {
+          ...off,
+          activeCases: newCount,
+          status: newCount > 24 ? 'High Load' : 'Optimal',
+        };
+      }
+      if (off.id === targetOfficerId) {
+        const newCount = off.activeCases + count;
+        return {
+          ...off,
+          activeCases: newCount,
+          status: newCount > 24 ? 'High Load' : 'Optimal',
+        };
+      }
+      return off;
+    }));
+    showToast('Workload Rebalanced', `${count} dockets successfully transferred between desks.`, 'success');
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -412,6 +773,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         selectedOfficerDept,
         setSelectedOfficerDept,
         project,
+        projectApprovals: project.approvals,
         setProject,
         vaultDocuments,
         addVaultDocument,
@@ -427,7 +789,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         officerReject,
         officerRaiseQuery,
         officerScheduleInspection,
+        simulatePrerequisiteApproval,
+        startApplication,
+        submitSmartRenewal,
         registerProject,
+        unifiedInspection,
+        proposeUnifiedInspection,
+        submitDepartmentInspectionChecklist,
+        escalations,
+        addEscalationRemark,
+        escalateItem,
+        regulatoryRules,
+        toggleRegulatoryRule,
+        addRegulatoryRule,
+        officerWorkload,
+        rebalanceOfficerWorkload,
       }}
     >
       {children}

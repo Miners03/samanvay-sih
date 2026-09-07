@@ -5,13 +5,43 @@ export type ApprovalStatus =
   | 'in_progress' 
   | 'action_required' 
   | 'rejected' 
-  | 'waiting';
+  | 'waiting'
+  | 'can_apply_now'
+  | 'draft'
+  | 'submitted'
+  | 'inspection_scheduled'
+  | 'awaiting_decision';
 
 export type ClearanceStage = 
   | 'pre_establishment' 
   | 'pre_construction' 
   | 'pre_operation' 
   | 'post_commissioning';
+
+export type VaultCategory = 
+  | 'Company'
+  | 'Land'
+  | 'Project'
+  | 'Financial'
+  | 'Environmental'
+  | 'Licences'
+  | 'Certificates'
+  | 'Inspection Reports';
+
+export type DocumentVerificationStatus = 
+  | 'Verified' 
+  | 'Pending Verification' 
+  | 'Expiring Soon' 
+  | 'Expired';
+
+export interface SmartValidationCheck {
+  isReadable: boolean;
+  pagesPresent: boolean;
+  nameTypeMatch: boolean;
+  signaturePresent: boolean;
+  formatValid: boolean;
+  warningMessage?: string;
+}
 
 export interface Department {
   id: string;
@@ -104,6 +134,29 @@ export interface InspectionRecord {
   status: 'scheduled' | 'completed' | 'report_generated';
   findings?: string;
   reportRef?: string;
+  checklist?: { item: string; verified: boolean }[];
+}
+
+export interface TimelineEvent {
+  id: string;
+  stageName: string;
+  date: string;
+  time?: string;
+  actor: string;
+  description: string;
+  isCompleted: boolean;
+  isCurrent?: boolean;
+}
+
+export interface AuthorityReplyTracker {
+  lastAuthorityAction: string;
+  lastAuthorityActionDate: string;
+  applicantResponse: string;
+  applicantResponseDate?: string;
+  currentState: string;
+  expectedNextAction: string;
+  responsibleOfficer: string;
+  slaRemainingDays: number;
 }
 
 export interface ApprovalRoadmapItem {
@@ -113,12 +166,17 @@ export interface ApprovalRoadmapItem {
   departmentName: string;
   approvalName: string;
   approvalCode: string;
+  approvalType?: string; // e.g. 'Statutory NOC', 'Consent', 'Building Permit', 'Operational Licence'
   stage: ClearanceStage;
   stageLabel: string;
   status: ApprovalStatus;
   statusLabel: string;
+  priority?: 'High' | 'Medium' | 'Standard';
   dependencies: string[]; // IDs of prerequisites
+  dependencyNames?: string[]; // Readable names of prerequisites
   unlockReason?: string;
+  canApplyNow?: boolean;
+  isParallelTrack?: boolean;
   appliedDate?: string;
   estimatedDays: number;
   slaDays: number;
@@ -128,10 +186,14 @@ export interface ApprovalRoadmapItem {
   officerAssigned?: string;
   certificateNo?: string;
   feeAmountINR: number;
+  inspectionRequired?: boolean;
+  requiredDocsCount?: number;
   query?: ApprovalQuery;
   inspection?: InspectionRecord;
   documentsRequired: string[];
   documentsSubmitted: string[];
+  authorityTracker?: AuthorityReplyTracker;
+  timelineEvents?: TimelineEvent[];
   activityLogs: {
     date: string;
     actor: string;
@@ -148,7 +210,7 @@ export interface Project {
   businessType: 'Private Limited' | 'Public Limited' | 'LLP' | 'Partnership' | 'Proprietorship';
   sector: string;
   subSector: string;
-  registrationNumber: string; // CIN or LLPIN
+  registrationNumber: string;
   panNumber: string;
   gstin: string;
   udyamNumber?: string;
@@ -180,16 +242,19 @@ export interface Project {
 export interface VaultDocument {
   id: string;
   title: string;
-  category: 'Corporate' | 'Land & Building' | 'Environmental' | 'Technical / Engineering' | 'Statutory Licences';
+  category: VaultCategory;
   docNumber: string;
   issuingAuthority: string;
   issuedDate: string;
   validUntil: string;
   fileSize: string;
   fileFormat: string;
+  verificationStatus: DocumentVerificationStatus;
   verified: boolean;
   isDigiLockerLinked: boolean;
   linkedDepartmentClearances: string[];
+  usedInApplications: string[];
+  smartChecks: SmartValidationCheck;
 }
 
 export interface ComplianceRenewal {
@@ -205,6 +270,15 @@ export interface ComplianceRenewal {
   renewalFee: number;
   autoRenewalEligible: boolean;
   frequency: 'Annual' | 'Bi-annual' | '5 Years';
+  expiryIntelligenceMessage: string;
+  reusedDetails: {
+    businessName: string;
+    pan: string;
+    premisesAddress: string;
+    previousConsentNo: string;
+    vaultDocumentsReused: string[];
+    updatedFieldsRequired: string[];
+  };
 }
 
 export interface IncentiveScheme {
@@ -213,12 +287,14 @@ export interface IncentiveScheme {
   name: string;
   administeringBody: string;
   type: 'Capital Subsidy' | 'Power Tariff Reimbursement' | 'Stamp Duty Exemption' | 'Employment Grant' | 'Green Transition Subsidy';
+  matchRating: 'High Match' | 'Medium Match' | 'Low Match';
   maxBenefit: string;
   eligibilityHighlight: string;
   status: 'eligible' | 'applied' | 'under_scrutiny' | 'sanctioned';
   claimAmountINR?: number;
   sanctionedAmountINR?: number;
   applicationDeadline: string;
+  requiredDocuments: string[];
 }
 
 export interface PlatformNotification {
@@ -227,9 +303,85 @@ export interface PlatformNotification {
   description: string;
   timeAgo: string;
   timestamp: string;
-  type: 'action' | 'alert' | 'success' | 'info';
+  type: 'application_update' | 'query' | 'approval' | 'dependency' | 'renewal' | 'sla' | 'info';
   read: boolean;
   department?: string;
   actionLabel?: string;
   actionUrl?: string;
 }
+
+export interface UnifiedInspectionProposal {
+  id: string;
+  projectId: string;
+  projectName: string;
+  facilityLocation: string;
+  commonalityScore: number; // e.g. 78
+  status: 'recommended' | 'proposed' | 'confirmed' | 'completed';
+  proposedDate: string;
+  proposedTime: string;
+  participatingDepartments: {
+    departmentId: string;
+    departmentName: string;
+    officerName: string;
+    approvalId: string;
+    approvalCode: string;
+    checklistSubmitted: boolean;
+  }[];
+  parallelChecklists: {
+    fire: { id: string; item: string; verified: boolean; remarks?: string }[];
+    pollution: { id: string; item: string; verified: boolean; remarks?: string }[];
+    factory: { id: string; item: string; verified: boolean; remarks?: string }[];
+  };
+  reports: Record<string, {
+    officer: string;
+    observations: string;
+    remarks: string;
+    recommendation: 'Approve' | 'Reject' | 'Request More Info';
+    submittedDate: string;
+  }>;
+}
+
+export interface EscalationItem {
+  id: string;
+  applicationId: string;
+  applicationName: string;
+  approvalCode: string;
+  departmentName: string;
+  officerName: string;
+  severity: 'Medium' | 'High' | 'Critical';
+  reason: string;
+  timeOverdue: string;
+  escalationLevel: 'Level 1: Nodal Officer' | 'Level 2: Joint Director' | 'Level 3: Apex Committee';
+  status: 'active' | 'resolved';
+  remarks: string[];
+}
+
+export interface RegulatoryRule {
+  id: string;
+  sector: string;
+  state: string;
+  department: string;
+  approvalName: string;
+  prerequisite: string;
+  requiredDocuments: string[];
+  slaDays: number;
+  inspectionRequired: boolean;
+  renewalPeriod: string;
+  effectiveDate: string;
+  version: string;
+  status: 'active' | 'draft' | 'deprecated';
+}
+
+export interface OfficerWorkloadItem {
+  id: string;
+  name: string;
+  department: string;
+  departmentCode?: string;
+  designation: string;
+  activeCases: number;
+  slaRiskCases: number;
+  avgProcessingDays: number;
+  maxCapacity?: number;
+  status: string;
+}
+

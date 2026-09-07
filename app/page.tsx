@@ -63,7 +63,7 @@ export default function LoginPage() {
       router.push('/applicant/dashboard');
     } else if (activeRoleTab === 'officer') {
       showToast('Department Access Granted', `Logged in as Scrutiny Officer. Loading departmental inbox...`, 'info');
-      router.push('/officer/queue');
+      router.push('/officer/dashboard');
     } else if (activeRoleTab === 'admin') {
       showToast('Apex Administrative Access', 'Logged in as State Single Window Administrator.', 'info');
       router.push('/admin/dashboard');
@@ -76,7 +76,7 @@ export default function LoginPage() {
     if (targetRole === 'applicant') {
       router.push('/applicant/dashboard');
     } else if (targetRole === 'officer') {
-      router.push('/officer/queue');
+      router.push('/officer/dashboard');
     } else if (targetRole === 'admin') {
       router.push('/admin/dashboard');
     }

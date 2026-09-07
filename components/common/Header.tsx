@@ -33,7 +33,7 @@ export const Header: React.FC = () => {
     if (newRole === 'applicant') {
       router.push('/applicant/dashboard');
     } else if (newRole === 'officer') {
-      router.push('/officer/queue');
+      router.push('/officer/dashboard');
     } else if (newRole === 'admin') {
       router.push('/admin/dashboard');
     }

@@ -1,0 +1,91 @@
+<USER_REQUEST>
+SYNC WITH EXISTING BUILD — READ FIRST
+
+Login already has working role tabs (Applicant / Government Officer / Administrator), each with its own form styling, plus a top-right "Quick 1-Click Persona Access for Evaluators" bar with Enter as Applicant / Enter as Officer / Enter as Admin buttons — keep and reuse these entry points; do not add a second login mechanism. Reuse the same header/branding shell already built for the Applicant portal (navy "स" mark + "Samanvay" + "समन्वय" pill, top government strip with English/हिन्दी toggle, notification bell with unread badge, "Role: X" dropdown, Logout) — Officer and Admin portals should look like siblings of the same shell, just swapping the portal label (e.g. "Applicant / Industry Portal" → "Government Officer Portal" / "Administration Portal") and nav items. Officer review should center on the same live entities from Part 2: applications for GreenTech Advanced Battery & Solar Cell Manufacturing Unit (SPCB Consent to Establish, Fire Provisional NOC, Factory Registration/DISH, DISCOM HT Feasibility) — reuse the same reference-ID format (SMV/2026/HR/GGM/...) rather than inventing a new demo project for the officer/admin side.
+
+OFFICER PORTAL
+
+Navbar: Dashboard | Applications | Inspections | SLA Monitor | Escalations | Risk & Analytics | Notifications | Profile. Display department prominently (e.g. "State Pollution Control Board — Officer Portal" or "Labour Dept / DISH — Officer Portal", matching the departments already referenced on the applicant side).
+
+Dashboard cards: New Applications, Under Review, SLA At Risk, Inspections, Escalated.
+
+Application queue table: ID, Applicant, Project, Submitted, Risk, SLA, Status, Action — filters by Status/Risk/Age/SLA/Type; surface SLA-at-risk and high-risk first.
+
+Application detail: header (App ID, applicant, approval, risk, SLA), tabs Overview/Documents/Query/Inspection/Timeline/Decision.
+
+Document review: two-column (list left, preview/detail right); per-doc verdict Verified/Requires Clarification/Invalid; actions Accept/Reject/Request Clarification.
+
+Review Assistance panel (decision-support only, label explicitly, officer keeps final authority): e.g. completeness 92%, required docs 8/8, flagged inconsistency (e.g. address mismatch), inspection required Y/N, risk level.
+
+Query tool: category, message, required document, response deadline → Send Query; applicant sees it immediately.
+
+UNIFIED INSPECTION PLANNING (MAJOR USP)
+
+Officer has Inspection Calendar + Inspection Requests list (project, site, department, type, required date, status, assigned officer).
+
+Commonality analysis: when multiple departments (e.g. Fire, Pollution, Factory) request inspections on the same project, show a requirement-overlap matrix (site visit, address verification, facility layout, safety systems, environmental controls, worker safety — ✓/— per department) → Commonality Score: 78% → "These inspections contain overlapping site-verification requirements and may be suitable for a coordinated visit." → Propose Unified Inspection button.
+
+Proposal screen: participating departments, proposed date/time/location, framed as "3 individual visits → 1 coordinated site visit." Explicitly state each department still keeps its own independent checklist, observations, and statutory decision — the platform only coordinates the physical visit, not the outcome.
+
+Execution: three parallel checklists shown side by side (Fire: exits/extinguishers/emergency systems/evacuation; Pollution: wastewater/emissions/waste/environmental safeguards; Factory: worker safety/machinery/PPE/workplace conditions). Each officer submits independently — no shared/merged approval.
+
+Officer inspection report: checklist results, observations, evidence/photo placeholders, remarks, recommendation → Save Draft / Submit Inspection Report.
+
+Officer decision: Approve / Reject / Request More Information (remarks required) → on submit: applicant status updates, roadmap updates, dependent approval auto-unlocks, admin dashboard updates.
+
+SLA MONITOR & ESCALATION
+
+SLA Monitor: On Track / Approaching SLA / SLA Breached lists (application, department, officer, SLA, days remaining/overdue, current stage). Escalation Center: severity Medium/High/Critical, reason, department, application, current owner, time overdue, escalation level; actions Notify Department / Escalate / Reassign (where permitted) / Add Remark.
+
+ADMIN PORTAL
+
+Navbar: Dashboard | Departments | Applications | Workload | Inspections | SLA & Escalations | Analytics | Regulatory Rules | Notifications | Settings.
+
+Dashboard: system-wide stat cards (Total Applications, Active, Approved, SLA At Risk, SLA Breached, Active Inspections, Escalations) — label numbers "Demo Data".
+
+Department performance: comparison table/cards across departments (Fire, Pollution, Labour/Factory, Building, Electricity, Land/Revenue) — pending, SLA at risk/breached, avg processing time, inspection backlog, query backlog.
+
+Automatic SLA alerts: e.g. "Pollution Control Department — 23 applications approaching/exceeding SLA, backlog 47, avg 19 days vs benchmark 12 days" → View Department / View Applications / Escalate.
+
+Bottleneck detection chart: e.g. Document Verification 31%, Inspection Scheduling 24%, Officer Review 19%, Applicant Response 15%, Final Decision 11%.
+
+Cross-department project view: one project → table of every department/approval/status (use the live project: GreenTech Advanced Battery & Solar Cell Manufacturing Unit, Ref SMV/2026/HR/GGM/00482, across SPCB/Fire/Labour-DISH/DISCOM/Land), with a highlighted "Current Bottleneck" row — this is visibility no single department has alone.
+
+Inspection optimisation panel: Separate vs Potentially Combinable vs Unified counts, e.g. "41 potentially combinable, 16 coordinated visits, 28% fewer duplicate site visits" — label "Prototype/Simulated Analytics".
+
+Workload table: officer, active cases, SLA risk, avg processing — optional "Rebalance Workload" (note real reassignment needs permissions).
+
+Regulatory Rules manager: each rule = Sector, State, Department, Approval, Prerequisite, Required documents, SLA, Inspection requirement, Renewal period, Effective date, Version. Add/Edit/View History/Deactivate. This represents the backend intelligence behind the roadmap engine.
+
+GUARDRAIL (apply everywhere AI/automation is shown)
+
+AI/intelligence may recommend, predict, detect, organise, prioritise, match, alert — it must NEVER auto-approve/reject, override an officer, or replace statutory authority. Always label it "Decision Support," never "Decision Maker."
+
+SHARED DATA MODEL
+
+USER→Profile→PROJECT→APPROVALS→DOCUMENTS→QUERIES→INSPECTIONS→DECISIONS→RENEWALS→NOTIFICATIONS. Each Approval carries: id, project, department, type, status, dependencies, documents, SLA, queries, inspection, decision, timeline — so Applicant/Officer/Admin views are three perspectives on the same underlying workflow, not disconnected mockups.
+
+CORE CLICKABLE DEMO SCRIPT (must all work end-to-end)
+Applicant (Vikramaditya Singhania) logs in via the 1-click evaluator button or the Applicant tab → the already-registered "GreenTech Advanced Battery & Solar Cell Manufacturing Unit" project (Ref SMV/2026/HR/GGM/00482) shows on the dashboard → opens the existing Stage roadmap (shows parallel tracks + sequential locks + dependency graph). New-project registration via the 5-step wizard should still work end-to-end as a second, separate flow for the demo.
+Opens an approval → vault suggests documents → submits application (Draft→Submitted→Under Review).
+Officer sees it in queue → reviews documents → raises a query.
+Applicant gets notified → responds/uploads → officer sees response.
+Multiple departments request inspections → system shows commonality analysis → proposes Unified Inspection.
+Three officers "attend" one coordinated visit, each completes an independent checklist → one department approves.
+Dependent approval auto-unlocks → applicant's roadmap updates live.
+Admin sees the full cross-department chain; if a department breaches SLA, Admin gets an alert.
+BUILD PRIORITY ORDER
+Role-based Login → 2. Applicant Dashboard → 3. Register New Project wizard → 4. Approval Roadmap + dependency graph → 5. Application Detail + Timeline → 6. Document Vault → 7. Officer Application Review → 8. Query→Response loop → 9. Unified Inspection Planner → 10. Admin SLA/Bottleneck Dashboard. Then: Renewals, Incentives, Risk analytics, Regulatory Rules, extra analytics.
+QUALITY BAR
+
+Real interactions, not static screens: all nav works, buttons lead somewhere real, tables have realistic demo data, statuses change live during the demo, all three role-views share the same underlying data, empty/loading states designed, toasts on key actions, confirmation dialogs on consequential actions, forms validate. Should feel presentable at a hackathon, not a wireframe set.
+
+POSITIONING (for pitch/landing copy)
+
+"Samanvay transforms fragmented government approvals into one personalised, transparent, coordinated approval journey." Differentiators to keep visually obvious: (1) Intelligent Approval Discovery, (2) Parallel+Sequential workflow with auto-unlock, (3) Reusable verified information, (4) Document/compliance intelligence, (5) Unified Inspection Planning (coordinated visit, independent decisions), (6) Authority Reply Tracking, (7) SLA/Bottleneck Intelligence for admins, (8) full lifecycle: Registration→Discovery→Application→Verification→Query→Inspection→Decision→Compliance→Renewal→Incentives.
+
+Final instruction to Antigravity: avoid generic AI-startup dashboard look, avoid over-rounded/gradient-heavy UI, keep AI/automation visually secondary to the approval journey itself. Every screen should answer: applicant — "Where is my application, what's happening, what do I need to do next?"; officer — "What needs my attention, what's at risk, what should I do?"; admin — "Where is the system slowing down, and how can the journey improve?"?
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-09-08T01:30:00+05:30.
+</ADDITIONAL_METADATA>
