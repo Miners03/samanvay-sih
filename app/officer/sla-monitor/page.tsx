@@ -17,9 +17,11 @@ import {
   Filter 
 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import { useApprovalIdentities } from '@/hooks/useApprovalIdentities';
 
 export default function SlaMonitorPage() {
   const { project } = useApp();
+  const { getUuid } = useApprovalIdentities();
   const [activeTab, setActiveTab] = useState<'all' | 'on_track' | 'approaching' | 'breached'>('all');
 
   // Categorize approvals into On Track, Approaching, Breached
@@ -143,7 +145,7 @@ export default function SlaMonitorPage() {
                 return (
                   <tr key={app.id} className="hover:bg-slate-50 transition-colors">
                     <td className="py-3.5 px-4">
-                      <Link href={`/officer/review/${app.id}`} className="font-bold text-slate-900 hover:text-gov-blue-secondary hover:underline block leading-tight">
+                      <Link href={getUuid(app.id) ? `/officer/review/${getUuid(app.id)}` : '#'} className="font-bold text-slate-900 hover:text-gov-blue-secondary hover:underline block leading-tight">
                         {app.approvalName}
                       </Link>
                       <span className="font-mono text-[10px] text-slate-400 mt-0.5 block">
@@ -177,7 +179,7 @@ export default function SlaMonitorPage() {
 
                     <td className="py-3.5 px-4 text-right">
                       <Link
-                        href={`/officer/review/${app.id}`}
+                        href={getUuid(app.id) ? `/officer/review/${getUuid(app.id)}` : '#'}
                         className="inline-flex items-center gap-1 bg-gov-blue-secondary hover:bg-gov-blue-primary text-white px-3 py-1.5 rounded text-xs font-bold transition-all shadow-xs"
                       >
                         <Eye className="w-3.5 h-3.5" />

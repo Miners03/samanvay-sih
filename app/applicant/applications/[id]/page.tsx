@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useApp } from '@/lib/context/AppContext';
 import { useApprovalQueries } from '@/hooks/useApprovalQueries';
+import { useApprovalIdentities } from '@/hooks/useApprovalIdentities';
 import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -33,9 +34,11 @@ import { formatCurrencyINR, formatDate } from '@/lib/utils';
 export default function ApplicationDetailPage() {
   const { id } = useParams();
   const { project, vaultDocuments } = useApp();
+  const { getUuid } = useApprovalIdentities();
 
   const approval = project.approvals.find(a => a.id === id) || project.approvals[0];
-  const approvalQueries = useApprovalQueries(approval?.id ?? '');
+  const approvalUuid = getUuid(typeof id === 'string' ? id : '');
+  const approvalQueries = useApprovalQueries(approvalUuid ?? '');
   const activeQuery = approvalQueries[0];
 
   const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'timeline' | 'queries' | 'inspection' | 'communication' | 'decision'>('overview');

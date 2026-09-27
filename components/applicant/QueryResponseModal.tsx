@@ -19,12 +19,14 @@ import { formatDate } from '@/lib/utils';
 
 interface QueryResponseModalProps {
   approval: ApprovalRoadmapItem;
+  approvalUuid?: string;
   isOpen: boolean;
   onClose: () => void;
 }
 
 export const QueryResponseModal: React.FC<QueryResponseModalProps> = ({
   approval,
+  approvalUuid,
   isOpen,
   onClose,
 }) => {
@@ -33,7 +35,7 @@ export const QueryResponseModal: React.FC<QueryResponseModalProps> = ({
   const [selectedVaultDocs, setSelectedVaultDocs] = useState<string[]>([]);
   const [simulatedUploadName, setSimulatedUploadName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const liveQueries = useApprovalQueries(approval.id);
+  const liveQueries = useApprovalQueries(approvalUuid ?? '');
 
   if (!isOpen || !approval.query) return null;
 

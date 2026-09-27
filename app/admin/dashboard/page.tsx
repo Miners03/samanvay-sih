@@ -24,9 +24,11 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useApprovalIdentities } from '@/hooks/useApprovalIdentities';
 
 export default function AdminDashboardPage() {
   const { project, projectApprovals, escalations, escalateItem } = useApp();
+  const { getUuid } = useApprovalIdentities();
   const [escalateSuccess, setEscalateSuccess] = useState<string | null>(null);
 
   const handleEscalateAlert = (deptCode: string, reason: string) => {
@@ -561,7 +563,7 @@ export default function AdminDashboardPage() {
                 <td className="py-3.5 px-4 text-slate-500">Cleared in 6d (SLA: 15d)</td>
                 <td className="py-3.5 px-4 text-slate-500">Prerequisite for site plan cleared</td>
                 <td className="py-3.5 px-4 text-right">
-                  <Link href="/officer/review/SMV-2026-HR-GGM-APP-00101" className="text-gov-blue-primary font-bold hover:underline">
+                  <Link href={getUuid('SMV/2026/HR/GGM/APP-00101') ? `/officer/review/${getUuid('SMV/2026/HR/GGM/APP-00101')}` : '#'} className="text-gov-blue-primary font-bold hover:underline">
                     View
                   </Link>
                 </td>
@@ -592,7 +594,7 @@ export default function AdminDashboardPage() {
                 </td>
                 <td className="py-3.5 px-4 text-right">
                   <Link 
-                    href="/officer/review/SMV-2026-HR-GGM-APP-00106" 
+                    href={getUuid('SMV/2026/HR/GGM/APP-00106') ? `/officer/review/${getUuid('SMV/2026/HR/GGM/APP-00106')}` : '#'}
                     className="inline-flex items-center gap-1 bg-red-600 text-white px-2.5 py-1 rounded text-xs font-bold hover:bg-red-700 shadow-xs"
                   >
                     Intervene <ArrowUpRight className="w-3 h-3" />
@@ -620,7 +622,7 @@ export default function AdminDashboardPage() {
                 <td className="py-3.5 px-4 text-amber-800">Day 11 of 21 (10 Days left)</td>
                 <td className="py-3.5 px-4 text-amber-900">Blocks Final Factory Licence</td>
                 <td className="py-3.5 px-4 text-right">
-                  <Link href="/officer/review/SMV-2026-HR-GGM-APP-00107" className="text-gov-blue-primary font-bold hover:underline">
+                  <Link href={getUuid('SMV/2026/HR/GGM/APP-00107') ? `/officer/review/${getUuid('SMV/2026/HR/GGM/APP-00107')}` : '#'} className="text-gov-blue-primary font-bold hover:underline">
                     View
                   </Link>
                 </td>
@@ -641,7 +643,7 @@ export default function AdminDashboardPage() {
                 <td className="py-3.5 px-4 text-slate-500">Day 7 of 15 (8 Days left)</td>
                 <td className="py-3.5 px-4 text-slate-500">Transformer installation pending clearance</td>
                 <td className="py-3.5 px-4 text-right">
-                  <Link href="/officer/review/SMV-2026-HR-GGM-APP-00105" className="text-gov-blue-primary font-bold hover:underline">
+                  <Link href={getUuid('SMV/2026/HR/GGM/APP-00105') ? `/officer/review/${getUuid('SMV/2026/HR/GGM/APP-00105')}` : '#'} className="text-gov-blue-primary font-bold hover:underline">
                     View
                   </Link>
                 </td>

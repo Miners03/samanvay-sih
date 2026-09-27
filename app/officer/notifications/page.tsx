@@ -15,8 +15,10 @@ import {
   Check
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useApprovalIdentities } from '@/hooks/useApprovalIdentities';
 
 export default function OfficerNotificationsPage() {
+  const { getUuid } = useApprovalIdentities();
   const [filter, setFilter] = useState<'all' | 'unread' | 'action_required'>('all');
 
   const [notifications, setNotifications] = useState([
@@ -28,7 +30,7 @@ export default function OfficerNotificationsPage() {
       category: 'query_response',
       unread: true,
       priority: 'high',
-      link: '/officer/review/SMV-2026-HR-GGM-APP-00106?tab=query',
+      link: getUuid('SMV/2026/HR/GGM/APP-00106') ? `/officer/review/${getUuid('SMV/2026/HR/GGM/APP-00106')}?tab=query` : '#',
       linkLabel: 'Review Applicant Clarification'
     },
     {
