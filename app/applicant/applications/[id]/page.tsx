@@ -4,6 +4,9 @@ import React, { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useApp } from '@/lib/context/AppContext';
+import { useApprovalQueries } from '@/hooks/useApprovalQueries';
+import { useApprovalIdentities } from '@/hooks/useApprovalIdentities';
+import { supabase } from '@/lib/supabase';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { SLAAlert } from '@/components/common/SLAAlert';
@@ -30,9 +33,13 @@ import { formatCurrencyINR, formatDate } from '@/lib/utils';
 
 export default function ApplicationDetailPage() {
   const { id } = useParams();
-  const { project, vaultDocuments, resolveQuery } = useApp();
+  const { project, vaultDocuments } = useApp();
+  const { getUuid } = useApprovalIdentities();
 
   const approval = project.approvals.find(a => a.id === id) || project.approvals[0];
+  const approvalUuid = getUuid(typeof id === 'string' ? id : '');
+  const approvalQueries = useApprovalQueries(approvalUuid ?? '');
+  const activeQuery = approvalQueries[0];
 
   const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'timeline' | 'queries' | 'inspection' | 'communication' | 'decision'>('overview');
   
@@ -40,9 +47,7 @@ export default function ApplicationDetailPage() {
   const [showQueryDialog, setShowQueryDialog] = useState(false);
   const [inlineReplyText, setInlineReplyText] = useState('');
   const [selectedDocsForReply, setSelectedDocsForReply] = useState<string[]>([]);
-  const [responseSubmittedLocally, setResponseSubmittedLocally] = useState(
-    approval.query?.status === 'submitted_by_applicant'
-  );
+  const [responseSubmittedLocally, setResponseSubmittedLocally] = useState(false);
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Layers },
@@ -59,11 +64,23 @@ export default function ApplicationDetailPage() {
     { id: 'decision', label: 'Official Decision', icon: CheckCircle2 },
   ];
 
-  const handleInlineQuerySubmit = (e: React.FormEvent) => {
+  const handleInlineQuerySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inlineReplyText) return;
 
-    resolveQuery(approval.id, inlineReplyText, selectedDocsForReply);
+    if (!activeQuery) return;
+
+    const { error } = await supabase.rpc('respond_to_query', {
+      p_query_id: activeQuery.id,
+      p_response: inlineReplyText,
+    });
+
+    if (error) {
+      console.error('Failed to respond to query', error);
+      alert('The response could not be submitted. Please try again.');
+      return;
+    }
+
     setResponseSubmittedLocally(true);
     setInlineReplyText('');
   };
@@ -375,31 +392,31 @@ export default function ApplicationDetailPage() {
                 </p>
               </div>
 
-              {approval.query ? (
+              {activeQuery ? (
                 <div className="space-y-4">
                   {/* The Query Message Box */}
                   <div className="bg-amber-50 rounded-lg border border-amber-300 p-5 space-y-3">
                     <div className="flex items-center justify-between text-amber-950 font-bold border-b border-amber-200 pb-2">
-                      <span>Query Subject: &quot;{approval.query.subject}&quot;</span>
+                      <span>Query Category: &quot;{activeQuery.category}&quot;</span>
                       <span className="bg-white px-2 py-0.5 rounded text-[11px] border border-amber-300">
-                        Response Deadline: {formatDate(approval.query.deadlineDate)}
+                        Response Deadline: {formatDate(activeQuery.response_deadline || '')}
                       </span>
                     </div>
 
                     <div className="text-slate-800 space-y-1 leading-relaxed">
                       <span className="text-[10px] font-bold text-amber-900 uppercase">Officer Remarks:</span>
                       <p className="bg-white p-3 rounded border border-amber-200 font-sans">
-                        {approval.query.description}
+                        {activeQuery.message}
                       </p>
                     </div>
 
                     <div className="text-[11px] text-slate-600">
-                      <span>Raised by: <strong>{approval.query.raisedBy}</strong> ({approval.query.department})</span>
+                      <span>Query ID: <strong>{activeQuery.id}</strong></span>
                     </div>
                   </div>
 
                   {/* Response Submitted State */}
-                  {(responseSubmittedLocally || approval.query.status === 'submitted_by_applicant') ? (
+                  {(responseSubmittedLocally || activeQuery.awaiting === 'officer' || activeQuery.resolved) ? (
                     <div className="bg-emerald-50 border border-emerald-300 rounded-lg p-5 space-y-2">
                       <div className="flex items-center gap-2 text-emerald-950 font-bold text-sm">
                         <CheckCircle2 className="w-5 h-5 text-emerald-700" />

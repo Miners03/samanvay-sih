@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useApp } from '@/lib/context/AppContext';
+import { useApprovalIdentities } from '@/hooks/useApprovalIdentities';
 import { DEPARTMENTS } from '@/lib/data/departments';
 import { 
   BarChart3, 
@@ -19,6 +20,7 @@ import {
 
 export default function OfficerAnalyticsPage() {
   const { selectedOfficerDept, projectApprovals, escalations } = useApp();
+  const { getUuid } = useApprovalIdentities();
   const activeDept = DEPARTMENTS.find(d => d.id === selectedOfficerDept) || DEPARTMENTS[0];
 
   const deptApprovals = (projectApprovals || []).filter(a => a.departmentId === selectedOfficerDept || selectedOfficerDept === 'all');
@@ -170,7 +172,7 @@ export default function OfficerAnalyticsPage() {
           <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
             <span className="text-slate-500">Active High-Risk Case: <strong>GreenTech Battery Plant (SMV/2026/HR/GGM/APP-00106)</strong></span>
             <Link 
-              href="/officer/review/SMV-2026-HR-GGM-APP-00106"
+              href={getUuid('SMV/2026/HR/GGM/APP-00106') ? `/officer/review/${getUuid('SMV/2026/HR/GGM/APP-00106')}` : '#'}
               className="font-bold text-gov-blue-primary hover:underline flex items-center gap-1"
             >
               Open Dossier <ArrowUpRight className="w-3.5 h-3.5" />

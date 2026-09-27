@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useApp } from '@/lib/context/AppContext';
+import { supabase } from '@/lib/supabase';
+import { useApprovalQueries } from '@/hooks/useApprovalQueries';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { SLAAlert } from '@/components/common/SLAAlert';
@@ -40,13 +42,42 @@ export default function ScrutinyDossierPage() {
     vaultDocuments, 
     officerApprove, 
     officerReject, 
-    officerRaiseQuery, 
     officerScheduleInspection,
     showToast 
   } = useApp();
 
-  const normalizedAppId = typeof appId === 'string' ? appId.replace(/-/g, '/') : '';
-  const approval = project?.approvals?.find(a => a.id === appId || a.id === normalizedAppId) || project?.approvals?.[0];
+  const routeApprovalId = typeof appId === 'string' ? appId : '';
+  const [dbApproval, setDbApproval] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    if (!routeApprovalId) return;
+
+    const fetchApproval = async () => {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      console.error('SESSION CHECK:', { session: sessionData?.session, sessionError });
+
+      const { data: approval, error: fetchError } = await supabase
+        .from('application_approvals')
+        .select('*')
+        .eq('id', routeApprovalId)
+        .single();
+      console.error('FETCH RESULT:', { approval, fetchError, routeApprovalId });
+
+      if (fetchError) {
+        console.error('Failed to fetch application approval', fetchError);
+        return;
+      }
+      setDbApproval(approval as Record<string, unknown>);
+    };
+
+    void fetchApproval();
+  }, [routeApprovalId]);
+
+  const referenceId = [
+    'reference_id', 'referenceId', 'application_ref', 'applicationRef', 'display_id', 'displayId',
+  ].map(key => dbApproval?.[key]).find(value => typeof value === 'string') as string | undefined;
+  const approval = project?.approvals?.find(a => a.id === referenceId);
+  const approvalQueries = useApprovalQueries(routeApprovalId);
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'query' | 'inspection' | 'timeline' | 'decision'>('documents');
@@ -77,6 +108,13 @@ export default function ScrutinyDossierPage() {
   const [inspectionDate, setInspectionDate] = useState('2026-09-24');
 
   if (!approval) {
+    console.error('[Officer review guard] No matching application approval for route params', {
+      appId,
+      routeApprovalId,
+      fetchedRow: dbApproval,
+      resolvedReferenceId: referenceId,
+      availableProjectApprovalIds: project?.approvals?.map(item => item.id),
+    });
     return (
       <div className="max-w-7xl mx-auto px-4 py-16 text-center space-y-4">
         <h2 className="text-xl font-bold text-slate-800">Scrutiny Dossier Not Found</h2>
@@ -101,16 +139,33 @@ export default function ScrutinyDossierPage() {
     );
   };
 
-  const handleSendQuery = (e: React.FormEvent) => {
+  const handleSendQuery = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!querySubject || !queryDescription) {
       alert('Please fill out the query subject and detailed observation.');
       return;
     }
 
-    officerRaiseQuery(approval.id, querySubject, queryDescription, requestedDocs);
+    const deadline = new Date();
+    deadline.setDate(deadline.getDate() + Number(deadlineDays));
+
+    const { error } = await supabase.rpc('raise_query', {
+      p_approval_id: routeApprovalId,
+      p_category: queryCategory,
+      p_message: queryDescription,
+      p_required_document_key: requestedDocs[0] || null,
+      p_deadline: deadline.toISOString(),
+    });
+
+    if (error) {
+      console.error('Failed to raise query', error);
+      alert('The query could not be sent. Please try again.');
+      return;
+    }
+
     setQuerySubject('');
     setQueryDescription('');
+    setRequestedDocs([]);
     setActiveTab('overview');
   };
 
@@ -118,6 +173,12 @@ export default function ScrutinyDossierPage() {
     e.preventDefault();
     if (decisionType === 'approve') {
       officerApprove(approval.id, approveRemarks, customCertNo);
+      console.error('[Officer review redirect] Approval decision submitted; redirecting to queue', {
+        destination: '/officer/queue',
+        routeApprovalId,
+        approvalId: approval.id,
+        decisionType,
+      });
       router.push('/officer/queue');
     } else if (decisionType === 'reject') {
       if (!rejectReason) {
@@ -125,6 +186,12 @@ export default function ScrutinyDossierPage() {
         return;
       }
       officerReject(approval.id, rejectReason);
+      console.error('[Officer review redirect] Rejection submitted; redirecting to queue', {
+        destination: '/officer/queue',
+        routeApprovalId,
+        approvalId: approval.id,
+        decisionType,
+      });
       router.push('/officer/queue');
     } else {
       setActiveTab('query');

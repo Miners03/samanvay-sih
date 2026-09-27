@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { ApprovalRoadmapItem, VaultDocument } from '@/lib/types';
 import { useApp } from '@/lib/context/AppContext';
+import { useApprovalQueries } from '@/hooks/useApprovalQueries';
+import { supabase } from '@/lib/supabase';
 import { 
   X, 
   AlertTriangle, 
@@ -17,20 +19,23 @@ import { formatDate } from '@/lib/utils';
 
 interface QueryResponseModalProps {
   approval: ApprovalRoadmapItem;
+  approvalUuid?: string;
   isOpen: boolean;
   onClose: () => void;
 }
 
 export const QueryResponseModal: React.FC<QueryResponseModalProps> = ({
   approval,
+  approvalUuid,
   isOpen,
   onClose,
 }) => {
-  const { vaultDocuments, resolveQuery } = useApp();
+  const { vaultDocuments } = useApp();
   const [responseNotes, setResponseNotes] = useState('');
   const [selectedVaultDocs, setSelectedVaultDocs] = useState<string[]>([]);
   const [simulatedUploadName, setSimulatedUploadName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const liveQueries = useApprovalQueries(approvalUuid ?? '');
 
   if (!isOpen || !approval.query) return null;
 
@@ -59,12 +64,28 @@ export const QueryResponseModal: React.FC<QueryResponseModalProps> = ({
       return;
     }
 
+    const queryId = liveQueries[0]?.id;
+    if (!queryId) {
+      alert('This query is not available in the live registry yet. Please refresh and try again.');
+      return;
+    }
+
     setIsSubmitting(true);
-    setTimeout(() => {
-      resolveQuery(approval.id, responseNotes, selectedVaultDocs);
+    void (async () => {
+      const result = await supabase.rpc('respond_to_query', {
+        p_query_id: queryId,
+        p_response: responseNotes,
+      });
+
+      if (result.error) {
+        console.error('Failed to respond to query', result.error);
+        alert('The response could not be submitted. Please try again.');
+      } else {
+        onClose();
+      }
+
       setIsSubmitting(false);
-      onClose();
-    }, 600);
+    })();
   };
 
   return (

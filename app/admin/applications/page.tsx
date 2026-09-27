@@ -18,9 +18,11 @@ import {
   FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useApprovalIdentities } from '@/hooks/useApprovalIdentities';
 
 export default function AdminApplicationsPage() {
   const { project, projectApprovals, escalations, escalateItem } = useApp();
+  const { getUuid } = useApprovalIdentities();
   const [filterDept, setFilterDept] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -202,7 +204,7 @@ export default function AdminApplicationsPage() {
 
                     <td className="py-3.5 px-4 text-right">
                       <Link
-                        href={`/officer/review/${item.id.replace(/\//g, '-')}`}
+                        href={getUuid(item.id) ? `/officer/review/${getUuid(item.id)}` : '#'}
                         className="inline-flex items-center gap-1 text-xs font-bold text-gov-blue-primary hover:underline"
                       >
                         Inspect Dossier <ArrowUpRight className="w-3.5 h-3.5" />

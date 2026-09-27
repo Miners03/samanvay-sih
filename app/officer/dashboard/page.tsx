@@ -22,9 +22,11 @@ import {
   Layers 
 } from 'lucide-react';
 import { formatDate, formatCurrencyINR } from '@/lib/utils';
+import { useApprovalIdentities } from '@/hooks/useApprovalIdentities';
 
 export default function OfficerDashboardPage() {
   const { project, selectedOfficerDept, escalations, unifiedInspection } = useApp();
+  const { getUuid } = useApprovalIdentities();
 
   const activeDept = DEPARTMENTS.find(d => d.id === selectedOfficerDept) || DEPARTMENTS[0];
 
@@ -216,7 +218,7 @@ export default function OfficerDashboardPage() {
                       )}
                     </td>
                     <td className="py-3 px-4 font-bold text-slate-900">
-                      <Link href={`/officer/review/${app.id}`} className="hover:text-gov-blue-secondary hover:underline">
+                      <Link href={getUuid(app.id) ? `/officer/review/${getUuid(app.id)}` : '#'} className="hover:text-gov-blue-secondary hover:underline">
                         {app.approvalName}
                       </Link>
                       <span className="text-[10px] text-slate-400 block font-normal">
@@ -238,7 +240,7 @@ export default function OfficerDashboardPage() {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <Link
-                        href={`/officer/review/${app.id}`}
+                        href={getUuid(app.id) ? `/officer/review/${getUuid(app.id)}` : '#'}
                         className="inline-flex items-center gap-1 bg-gov-blue-secondary hover:bg-gov-blue-primary text-white px-3 py-1.5 rounded text-xs font-bold transition-all shadow-xs"
                       >
                         <Eye className="w-3.5 h-3.5" />
