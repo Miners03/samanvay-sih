@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useApp } from '@/lib/context/AppContext';
+import { useApp, useProject } from '@/lib/context/AppContext';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { ApprovalRoadmapItem } from '@/lib/types';
 import { 
@@ -23,7 +23,9 @@ interface VisualDependencyGraphProps {
 export const VisualDependencyGraph: React.FC<VisualDependencyGraphProps> = ({
   onStartApplication,
 }) => {
-  const { project, simulatePrerequisiteApproval } = useApp();
+  const project = useProject();
+  const { simulatePrerequisiteApproval } = useApp();
+
 
   const landApp = project.approvals.find(a => a.id === 'SMV/2026/HR/GGM/APP-00101' || a.id === 'app-land-01' || a.approvalCode?.includes('ALLOT')) || project.approvals[0];
   const bldApp = project.approvals.find(a => a.id === 'SMV/2026/HR/GGM/APP-00102' || a.id === 'app-bld-05' || a.approvalCode?.includes('BLD')) || project.approvals[1];

@@ -94,21 +94,21 @@ export const ActiveProjectCard: React.FC<ActiveProjectCardProps> = ({ project })
             <span className="text-slate-500 text-[11px] block">Environmental Class</span>
             <span className="font-semibold text-amber-800 mt-0.5 flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-amber-500" />
-              {project.operations.environmental.category} Category Unit
+              {project?.operations?.environmental?.category} Category Unit
             </span>
           </div>
 
           <div className="bg-slate-50 p-2.5 rounded border border-slate-100">
             <span className="text-slate-500 text-[11px] block">Contractor Licence</span>
             <span className="font-semibold text-slate-800 mt-0.5 block">
-              {project.operations.labour.contractWorkers} Contract Workers
+              {project?.operations?.labour?.contractWorkers} Contract Workers
             </span>
           </div>
 
           <div className="bg-slate-50 p-2.5 rounded border border-slate-100">
             <span className="text-slate-500 text-[11px] block">Connected Power</span>
             <span className="font-semibold text-slate-800 mt-0.5 block">
-              {project.operations.utilities.powerKVA} kVA (HT Drawal)
+              {project?.operations?.utilities?.powerKVA ?? 0} kVA (HT Drawal)
             </span>
           </div>
         </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
 import { WizardStepper } from '@/components/wizard/WizardStepper';
@@ -25,6 +25,9 @@ import {
   Edit3 
 } from 'lucide-react';
 import { formatCurrencyINR } from '@/lib/utils';
+import { fetchIndustries } from '@/lib/supabase/projectData';
+
+
 
 export default function RegisterProjectWizardPage() {
   const router = useRouter();
@@ -33,12 +36,20 @@ export default function RegisterProjectWizardPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [profileAutoFilled, setProfileAutoFilled] = useState(false);
 
+  // inside the component:
+const [industries, setIndustries] = useState<{ industry_id: string; industry_name: string }[]>([]);
+const [selectedIndustryId, setSelectedIndustryId] = useState('');
+
+useEffect(() => {
+  fetchIndustries().then(setIndustries);
+}, []);
+
   // Form State
   // Step 1: Business
   const [companyName, setCompanyName] = useState('GreenTech Bharat CleanEnergy Pvt. Ltd.');
   const [businessType, setBusinessType] = useState<'Private Limited' | 'Public Limited' | 'LLP' | 'Partnership' | 'Proprietorship'>('Private Limited');
-  const [sector, setSector] = useState('Renewable Energy & Heavy Electrical Equipment');
-  const [subSector, setSubSector] = useState('Lithium Battery Packs & Solar PV Assemblies');
+  const [sector, setSector] = useState('');
+  const [subSector, setSubSector] = useState('');
   const [entityStatus, setEntityStatus] = useState<'New' | 'Existing'>('Existing');
   const [registrationNumber, setRegistrationNumber] = useState('U29309HR2022PTC104521');
   const [panNumber, setPanNumber] = useState('AABCG4928K');
@@ -50,7 +61,7 @@ export default function RegisterProjectWizardPage() {
 
   // Step 2: Project
   const [projectName, setProjectName] = useState('GreenTech Advanced Battery & Solar Cell Manufacturing Unit');
-  const [projectType, setProjectType] = useState<'New Greenfield Facility' | 'Expansion of Existing Unit' | 'Modernization / Modification'>('New Greenfield Facility');
+  const [projectType, setProjectType] = useState<'New Facility' | 'Expansion of Existing Unit' | 'Modernization / Modification'>('New Facility');
   const [estimatedInvestmentCrores, setEstimatedInvestmentCrores] = useState<number>(48.5);
   const [projectSizeSqMeters, setProjectSizeSqMeters] = useState<number>(28500);
   const [productionCapacity, setProductionCapacity] = useState('1.2 GWh Annual Energy Storage Packs');
@@ -132,90 +143,81 @@ export default function RegisterProjectWizardPage() {
     }
   };
 
-  const handleGenerateRoadmap = () => {
-    const operationsData: ProjectOperations = {
-      environmental: {
-        category: pollutionCategory,
-        hasWastewater,
-        wastewaterVolumeKLD: hasWastewater ? Number(wastewaterVolumeKLD) : undefined,
-        hasEmissions,
-        emissionTypes: hasEmissions ? emissionTypes : undefined,
-        hasHazardousMaterials,
-        wasteGeneratedDailyKg: Number(wasteGeneratedDailyKg),
-      },
-      utilities: {
-        powerKVA: Number(powerKVA),
-        waterKLD: Number(waterKLD),
-        gasRequired,
-        gasUsageSCMD: gasRequired ? Number(gasUsageSCMD) : undefined,
-      },
-      infrastructure: {
-        requiresNewConstruction,
-        builtUpAreaSqMeters: Number(builtUpAreaSqMeters),
-        buildingHeightMeters: Number(buildingHeightMeters),
-        factoryPremisesType,
-        hasFireSafetySystems,
-        hasBoiler,
-        boilerPressurePSI: hasBoiler ? Number(boilerPressurePSI) : undefined,
-      },
-      labour: {
-        totalWorkers: Number(totalWorkers),
-        shiftsCount: Number(shiftsCount),
-        contractWorkers: Number(contractWorkers),
-        hasHazardousOperations,
-        hasFemaleWorkersNightShift,
-      },
-    };
+  const handleGenerateRoadmap = async () => {
+  if (!selectedIndustryId) {
+    alert('Please select an industry.');
+    return;
+  }
 
-    const locationData: ProjectLocation = {
-      state,
-      district,
-      industrialArea,
-      landType,
-      address,
-      pinCode,
-      gisCoordinates: {
-        lat: 28.3541,
-        lng: 76.9412,
-      },
-    };
-
-    const dummyId = `proj-${Date.now()}`;
-    const generatedApprovals = generateRoadmapFromOperations(
-      dummyId,
-      projectName,
-      operationsData,
-      landType,
-      Number(estimatedInvestmentCrores)
-    );
-
-    const newProject = registerProject({
-      name: projectName,
-      companyName,
-      businessType,
-      sector,
-      subSector,
-      registrationNumber,
-      panNumber,
-      gstin,
-      udyamNumber,
-      contactPerson,
-      contactEmail,
-      contactPhone,
-      projectType,
-      estimatedInvestmentCrores: Number(estimatedInvestmentCrores),
-      projectSizeSqMeters: Number(projectSizeSqMeters),
-      productionCapacity,
-      expectedEmployees: Number(expectedEmployees),
-      expectedConstructionStartDate,
-      expectedOperationsStartDate,
-      location: locationData,
-      operations: operationsData,
-      approvals: generatedApprovals,
-    });
-
-    router.push(`/applicant/roadmap/${newProject.id}`);
+  const operationsData: ProjectOperations = {
+    environmental: {
+      category: pollutionCategory,
+      hasWastewater,
+      wastewaterVolumeKLD: hasWastewater ? Number(wastewaterVolumeKLD) : undefined,
+      hasEmissions,
+      emissionTypes: hasEmissions ? emissionTypes : undefined,
+      hasHazardousMaterials,
+      wasteGeneratedDailyKg: Number(wasteGeneratedDailyKg),
+    },
+    utilities: {
+      powerKVA: Number(powerKVA),
+      waterKLD: Number(waterKLD),
+      gasRequired,
+      gasUsageSCMD: gasRequired ? Number(gasUsageSCMD) : undefined,
+    },
+    infrastructure: {
+      requiresNewConstruction,
+      builtUpAreaSqMeters: Number(builtUpAreaSqMeters),
+      buildingHeightMeters: Number(buildingHeightMeters),
+      factoryPremisesType,
+      hasFireSafetySystems,
+      hasBoiler,
+      boilerPressurePSI: hasBoiler ? Number(boilerPressurePSI) : undefined,
+    },
+    labour: {
+      totalWorkers: Number(totalWorkers),
+      shiftsCount: Number(shiftsCount),
+      contractWorkers: Number(contractWorkers),
+      hasHazardousOperations,
+      hasFemaleWorkersNightShift,
+    },
   };
+
+  const locationData: ProjectLocation = {
+    state,
+    district,
+    industrialArea,
+    landType,
+    address,
+    pinCode,
+    gisCoordinates: { lat: 28.3541, lng: 76.9412 },
+  };
+
+  await registerProject(selectedIndustryId, companyName, {
+    projectName,
+    businessType,
+    sector,
+    subSector,
+    registrationNumber,
+    panNumber,
+    gstin,
+    udyamNumber,
+    contactPerson,
+    contactEmail,
+    contactPhone,
+    projectType,
+    estimatedInvestmentCrores: Number(estimatedInvestmentCrores),
+    projectSizeSqMeters: Number(projectSizeSqMeters),
+    productionCapacity,
+    expectedEmployees: Number(expectedEmployees),
+    expectedConstructionStartDate,
+    expectedOperationsStartDate,
+    location: locationData,
+    operations: operationsData,
+  });
+
+  router.push('/applicant/dashboard');
+};
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
@@ -303,13 +305,24 @@ export default function RegisterProjectWizardPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold text-slate-800">Industrial Sector</label>
-                <input
-                  type="text"
-                  value={sector}
-                  onChange={(e) => setSector(e.target.value)}
-                  className="w-full p-2.5 rounded border border-slate-300 text-xs"
-                />
+  <label className="font-bold text-slate-800">
+    Industrial Sector <span className="text-red-500">*</span>
+  </label>
+  <select
+    value={selectedIndustryId}
+    onChange={(e) => {
+      setSelectedIndustryId(e.target.value);
+      const match = industries.find(i => i.industry_id === e.target.value);
+      setSector(match?.industry_name ?? '');
+    }}
+    className="w-full p-2.5 rounded border border-slate-300 text-xs bg-white"
+    required
+  >
+    <option value="">Select your industry…</option>
+    {industries.map(i => (
+      <option key={i.industry_id} value={i.industry_id}>{i.industry_name}</option>
+    ))}
+  </select>
               </div>
 
               <div className="space-y-1">

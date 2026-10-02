@@ -2,10 +2,13 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useApp } from '@/lib/context/AppContext';
 import { PageHeader } from '@/components/common/PageHeader';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { DEPARTMENTS } from '@/lib/data/departments';
+
+import { RequireProject } from '@/components/applicant/RequireProject';
+import { useProject } from '@/lib/context/AppContext';
+
 import { 
   Building2, 
   Search, 
@@ -20,9 +23,18 @@ import {
 } from 'lucide-react';
 import { formatCurrencyINR, formatDate } from '@/lib/utils';
 
+// 1. Default Export Wrapper (guards against null project)
 export default function ApplicationsPage() {
-  const { project } = useApp();
+  return (
+    <RequireProject>
+      <ApplicationsPageContent />
+    </RequireProject>
+  );
+}
 
+// 2. Main Page Content (runs safely when project exists)
+function ApplicationsPageContent() {
+  const project = useProject(); // Safely fetches the non-null project
   const [search, setSearch] = useState('');
   const [selectedDept, setSelectedDept] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -141,7 +153,7 @@ export default function ApplicationsPage() {
         </div>
       </div>
 
-      {/* Applications Master Table with all required columns */}
+      {/* Applications Master Table */}
       <div className="bg-white rounded-lg border border-slate-200 shadow-gov overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-700">
@@ -163,7 +175,6 @@ export default function ApplicationsPage() {
 
                 return (
                   <tr key={app.id} className="hover:bg-slate-50/80 transition-colors group">
-                    {/* Application Name & Type */}
                     <td className="py-3.5 px-4 font-bold text-slate-900">
                       <Link
                         href={`/applicant/applications/${app.id}`}
@@ -176,27 +187,22 @@ export default function ApplicationsPage() {
                       </span>
                     </td>
 
-                    {/* Approval Code */}
                     <td className="py-3.5 px-4 font-mono font-bold text-slate-600">
                       {app.approvalCode}
                     </td>
 
-                    {/* Department */}
                     <td className="py-3.5 px-4 font-medium text-slate-800">
                       {app.departmentName}
                     </td>
 
-                    {/* Project */}
                     <td className="py-3.5 px-4 text-slate-600 truncate max-w-[140px]">
                       {project.name}
                     </td>
 
-                    {/* Status Badge */}
                     <td className="py-3.5 px-4">
                       <StatusBadge status={app.status} size="sm" />
                     </td>
 
-                    {/* Progress Indicator */}
                     <td className="py-3.5 px-4">
                       <div className="w-24">
                         <div className="flex justify-between text-[10px] font-bold text-slate-600 mb-0.5">
@@ -211,7 +217,6 @@ export default function ApplicationsPage() {
                       </div>
                     </td>
 
-                    {/* SLA Countdown */}
                     <td className="py-3.5 px-4">
                       {app.status === 'approved' ? (
                         <span className="text-[10px] font-mono text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
@@ -232,7 +237,6 @@ export default function ApplicationsPage() {
                       )}
                     </td>
 
-                    {/* Next Action */}
                     <td className="py-3.5 px-4 text-right">
                       <Link
                         href={`/applicant/applications/${app.id}`}

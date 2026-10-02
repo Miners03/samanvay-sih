@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useApp } from '@/lib/context/AppContext';
+import { RequireProject } from '@/components/applicant/RequireProject';
+import { useApp, useProject } from '@/lib/context/AppContext';
 import { useApprovalQueries } from '@/hooks/useApprovalQueries';
 import { useApprovalIdentities } from '@/hooks/useApprovalIdentities';
 import { supabase } from '@/lib/supabase';
@@ -31,9 +32,20 @@ import {
 } from 'lucide-react';
 import { formatCurrencyINR, formatDate } from '@/lib/utils';
 
+// 1. Default Export Wrapper (guards against null project)
 export default function ApplicationDetailPage() {
+  return (
+    <RequireProject>
+      <ApplicationDetailPageContent />
+    </RequireProject>
+  );
+}
+
+// 2. Main Page Content (runs safely when project exists)
+function ApplicationDetailPageContent() {
   const { id } = useParams();
-  const { project, vaultDocuments } = useApp();
+  const project = useProject();
+  const { vaultDocuments } = useApp();
   const { getUuid } = useApprovalIdentities();
 
   const approval = project.approvals.find(a => a.id === id) || project.approvals[0];
@@ -245,15 +257,15 @@ export default function ApplicationDetailPage() {
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 block">Plot Location</span>
-                      <span className="font-bold text-slate-800 truncate block">{project.location.industrialArea}</span>
+                      <span className="font-bold text-slate-800 truncate block">{project.location?.industrialArea}</span>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 block">Proposed Outlay</span>
-                      <span className="font-bold text-emerald-800">{formatCurrencyINR(project.estimatedInvestmentCrores * 10000000)}</span>
+                      <span className="font-bold text-emerald-800">{formatCurrencyINR((project.estimatedInvestmentCrores ?? 0) * 10000000)}</span>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 block">Power / Water Demand</span>
-                      <span className="font-bold text-slate-800">{project.operations.utilities.powerKVA} kVA / {project.operations.utilities.waterKLD} KLD</span>
+                      <span className="font-bold text-slate-800">{project.operations?.utilities?.powerKVA} kVA / {project.operations?.utilities?.waterKLD} KLD</span>
                     </div>
                   </div>
                 </div>

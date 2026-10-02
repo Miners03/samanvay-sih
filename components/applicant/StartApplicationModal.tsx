@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useApp } from '@/lib/context/AppContext';
+import { useApp, useProject } from '@/lib/context/AppContext';
 import { ApprovalRoadmapItem, VaultDocument } from '@/lib/types';
 import { 
   X, 
@@ -27,7 +27,8 @@ export const StartApplicationModal: React.FC<StartApplicationModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { project, vaultDocuments, startApplication } = useApp();
+  const project = useProject();
+  const { vaultDocuments, startApplication } = useApp();
   const [docActions, setDocActions] = useState<Record<string, 'reuse' | 'replace' | 'upload'>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 

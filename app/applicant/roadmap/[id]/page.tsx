@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useApp } from '@/lib/context/AppContext';
+import { RequireProject } from '@/components/applicant/RequireProject';
+import { useApp, useProject } from '@/lib/context/AppContext';
 import { PageHeader } from '@/components/common/PageHeader';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { StatusBadge } from '@/components/common/StatusBadge';
@@ -31,9 +32,20 @@ import {
 } from 'lucide-react';
 import { formatCurrencyINR, formatDate } from '@/lib/utils';
 
+// 1. Default Export Wrapper (guards against null project)
 export default function ApprovalRoadmapPage() {
+  return (
+    <RequireProject>
+      <ApprovalRoadmapPageContent />
+    </RequireProject>
+  );
+}
+
+// 2. Main Page Content (runs safely when project exists)
+function ApprovalRoadmapPageContent() {
   const { id } = useParams();
-  const { project, simulatePrerequisiteApproval } = useApp();
+  const project = useProject();
+  const { simulatePrerequisiteApproval } = useApp();
 
   const [viewMode, setViewMode] = useState<'stage' | 'graph' | 'split'>('stage');
   const [selectedApplicationToStart, setSelectedApplicationToStart] = useState<ApprovalRoadmapItem | null>(null);
@@ -126,7 +138,7 @@ export default function ApprovalRoadmapPage() {
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              {project.companyName} • {project.location.industrialArea}, {project.location.district} • Investment: <strong>{formatCurrencyINR(project.estimatedInvestmentCrores * 10000000)}</strong> • Workforce: <strong>{project.expectedEmployees} Personnel</strong>
+              {project.companyName} • {project.location?.industrialArea}, {project.location?.district} • Investment: <strong>{formatCurrencyINR((project.estimatedInvestmentCrores ?? 0) * 10000000)}</strong> • Workforce: <strong>{project.expectedEmployees} Personnel</strong>
             </p>
           </div>
 
@@ -138,13 +150,15 @@ export default function ApprovalRoadmapPage() {
           </div>
         </div>
 
-        <ProgressBar
-          completed={project.progress.completed}
-          total={project.progress.total}
-          inProgress={project.progress.inProgress}
-          actionRequired={project.progress.actionRequired}
-          waiting={project.progress.waiting}
-        />
+        {project.progress && (
+          <ProgressBar
+            completed={project.progress.completed}
+            total={project.progress.total}
+            inProgress={project.progress.inProgress}
+            actionRequired={project.progress.actionRequired}
+            waiting={project.progress.waiting}
+          />
+        )}
       </div>
 
       {/* VIEW MODE SELECTOR TABS */}
@@ -201,7 +215,6 @@ export default function ApprovalRoadmapPage() {
             const approvedCount = stageApprovals.filter((a) => a.status === 'approved').length;
             const isCompleted = approvedCount === stageApprovals.length && stageApprovals.length > 0;
 
-            // Separate sequential vs parallel in stage 1
             const parallelTracks = stageApprovals.filter((a) => a.isParallelTrack);
             const standardTracks = stageApprovals.filter((a) => !a.isParallelTrack);
 
@@ -234,7 +247,7 @@ export default function ApprovalRoadmapPage() {
                   </div>
                 </div>
 
-                {/* Standard / Foundation Approvals in this stage */}
+                {/* Standard / Foundation Approvals */}
                 {standardTracks.length > 0 && (
                   <div className="grid grid-cols-1 gap-4">
                     {standardTracks.map((approval) => (
@@ -249,7 +262,7 @@ export default function ApprovalRoadmapPage() {
                   </div>
                 )}
 
-                {/* Parallel Tracks Cluster (e.g. SPCB CTE, DISCOM HT, Fire Provisional NOC in Stage 1) */}
+                {/* Parallel Tracks Cluster */}
                 {parallelTracks.length > 0 && (
                   <div className="space-y-2 pt-1">
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
@@ -284,10 +297,10 @@ export default function ApprovalRoadmapPage() {
         />
       )}
 
-      {/* VIEW 3: CAN APPLY NOW VS LOCKED (CATEGORIZED SPLIT) */}
+      {/* VIEW 3: CAN APPLY NOW VS LOCKED */}
       {viewMode === 'split' && (
         <div className="space-y-8">
-          {/* Section A: Can Apply Now (Parallel & Unlocked) */}
+          {/* Section A: Can Apply Now */}
           <div className="space-y-4">
             <div className="border-b-2 border-amber-500 pb-2 flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
               <div>
@@ -317,7 +330,7 @@ export default function ApprovalRoadmapPage() {
             </div>
           </div>
 
-          {/* Section B: Waiting for Prerequisite (Sequential Tracks) */}
+          {/* Section B: Waiting for Prerequisite */}
           <div className="space-y-4 pt-4">
             <div className="border-b-2 border-slate-400 pb-2 flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
               <div>
@@ -416,7 +429,6 @@ function RoadmapCard({
   const isActionReq = approval.status === 'action_required';
   const isApproved = approval.status === 'approved';
 
-  // Card border styling based on status
   let borderStyle = 'border-slate-200 border-l-4 border-l-slate-400 bg-white';
   if (isApproved) {
     borderStyle = 'border-slate-200 border-l-4 border-l-emerald-600 bg-white';
@@ -478,7 +490,6 @@ function RoadmapCard({
                       {dep}
                     </span>
                   ))}
-                  {/* Interactive Demo Simulate Button */}
                   <button
                     onClick={() => onSimulatePrereq(approval.dependencies[0])}
                     className="inline-flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-gov-blue-secondary text-[10px] font-bold px-2 py-0.5 rounded border border-blue-200 shadow-xs"
@@ -540,7 +551,6 @@ function RoadmapCard({
                 {approval.query.description}
               </p>
               <div className="pt-2 flex items-center justify-between flex-wrap gap-2">
-                {/* Live Demo Simulate Prerequisite Clearance on SPCB CTE */}
                 {approval.id === 'SMV/2026/HR/GGM/APP-00106' && (
                   <button
                     onClick={() => onSimulatePrereq(approval.id)}
@@ -596,7 +606,6 @@ function RoadmapCard({
               </button>
             )}
 
-            {/* Live Demo Button on SPCB CTE if not approved yet */}
             {approval.id === 'SMV/2026/HR/GGM/APP-00106' && !isApproved && !isActionReq && (
               <button
                 onClick={() => onSimulatePrereq(approval.id)}

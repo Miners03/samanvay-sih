@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useApp } from '@/lib/context/AppContext';
 import { UserRole } from '@/lib/types';
 import { DEPARTMENTS } from '@/lib/data/departments';
+import { supabase } from '@/lib/supabase';
 import { 
   Building2, 
   ShieldCheck, 
@@ -54,33 +55,73 @@ export default function LoginPage() {
     setApplicantCaptcha(res);
   };
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setRole(activeRoleTab);
+ 
+const resolveEmailFromEmployeeId = async (employeeId: string): Promise<string | null> => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('employee_id', employeeId)
+    .single();
+  if (error || !data) return null;
+  return data.email;
+};
 
-    if (activeRoleTab === 'applicant') {
-      showToast('Welcome to Samanvay', 'Logged in as Enterprise Applicant. Accessing your project workspace...', 'success');
-      router.push('/applicant/dashboard');
-    } else if (activeRoleTab === 'officer') {
-      showToast('Department Access Granted', `Logged in as Scrutiny Officer. Loading departmental inbox...`, 'info');
-      router.push('/officer/dashboard');
-    } else if (activeRoleTab === 'admin') {
-      showToast('Apex Administrative Access', 'Logged in as State Single Window Administrator.', 'info');
-      router.push('/admin/dashboard');
-    }
-  };
+const handleLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-  const handleQuickDemoAccess = (targetRole: UserRole) => {
-    setRole(targetRole);
-    setActiveRoleTab(targetRole);
-    if (targetRole === 'applicant') {
-      router.push('/applicant/dashboard');
-    } else if (targetRole === 'officer') {
-      router.push('/officer/dashboard');
-    } else if (targetRole === 'admin') {
-      router.push('/admin/dashboard');
+  let email = '';
+  let password = '';
+
+  if (activeRoleTab === 'applicant') {
+    email = applicantIdentifier;
+    password = applicantPassword;
+  } else {
+    const rawId = activeRoleTab === 'officer' ? officerId : adminId;
+    const resolvedEmail = await resolveEmailFromEmployeeId(rawId);
+    if (!resolvedEmail) {
+      showToast('Login Failed', 'No account found for this ID.', 'error');
+      return;
     }
-  };
+    email = resolvedEmail;
+    password = activeRoleTab === 'officer' ? officerPassword : adminPassword;
+  }
+
+  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (authError || !authData.user) {
+    showToast('Login Failed', authError?.message ?? 'Invalid credentials.', 'error');
+    return;
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', authData.user.id)
+    .single();
+
+  if (profileError || !profile) {
+    showToast('Login Failed', 'No profile found for this account.', 'error');
+    return;
+  }
+
+  const confirmedRole = profile.role as UserRole;
+  setRole(confirmedRole);
+
+  if (confirmedRole === 'applicant') {
+    showToast('Welcome to Samanvay', 'Logged in as Enterprise Applicant. Accessing your project workspace...', 'success');
+    router.push('/applicant/dashboard');
+  } else if (confirmedRole === 'officer') {
+    showToast('Department Access Granted', 'Logged in as Scrutiny Officer. Loading departmental inbox...', 'info');
+    router.push('/officer/dashboard');
+  } else if (confirmedRole === 'admin') {
+    showToast('Apex Administrative Access', 'Logged in as State Single Window Administrator.', 'info');
+    router.push('/admin/dashboard');
+  }
+};
+
+const handleQuickDemoAccess = async () => {
+  showToast('Demo Access Disabled', 'Please log in with a real account below for now.', 'info');
+};
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between font-sans">
@@ -138,23 +179,23 @@ export default function LoginPage() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={() => handleQuickDemoAccess('applicant')}
-              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3 py-1.5 rounded transition-all shadow-sm"
-            >
-              Enter as Applicant
-            </button>
-            <button
-              onClick={() => handleQuickDemoAccess('officer')}
-              className="bg-gov-blue-secondary hover:bg-gov-blue-primary text-white font-bold px-3 py-1.5 rounded transition-all shadow-sm"
-            >
-              Enter as Officer
-            </button>
-            <button
-              onClick={() => handleQuickDemoAccess('admin')}
-              className="bg-purple-800 hover:bg-purple-900 text-white font-bold px-3 py-1.5 rounded transition-all shadow-sm"
-            >
-              Enter as Admin
-            </button>
+  onClick={() => handleQuickDemoAccess()}
+  className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3 py-1.5 rounded transition-all shadow-sm"
+>
+  Enter as Applicant
+</button>
+<button
+  onClick={() => handleQuickDemoAccess()}
+  className="bg-gov-blue-secondary hover:bg-gov-blue-primary text-white font-bold px-3 py-1.5 rounded transition-all shadow-sm"
+>
+  Enter as Officer
+</button>
+<button
+  onClick={() => handleQuickDemoAccess()}
+  className="bg-purple-800 hover:bg-purple-900 text-white font-bold px-3 py-1.5 rounded transition-all shadow-sm"
+>
+  Enter as Admin
+</button>
           </div>
         </div>
 
@@ -279,7 +320,7 @@ export default function LoginPage() {
                   <span>First time establishing an enterprise?</span>
                   <button
                     type="button"
-                    onClick={() => handleQuickDemoAccess('applicant')}
+                    onClick={() => handleQuickDemoAccess()}
                     className="text-gov-blue-secondary font-bold hover:underline"
                   >
                     Register as Applicant

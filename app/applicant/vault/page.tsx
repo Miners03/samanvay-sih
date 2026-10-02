@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/lib/context/AppContext';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -42,6 +42,10 @@ export default function DocumentVaultPage() {
   const [docNumber, setDocNumber] = useState('');
   const [issuingAuthority, setIssuingAuthority] = useState('');
   const [validUntil, setValidUntil] = useState('2028-12-31');
+  
+  // File upload state & ref
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Exact 8 categories specified in prompt:
   const categories: (VaultCategory | 'All')[] = [
@@ -70,6 +74,12 @@ export default function DocumentVaultPage() {
     return true;
   });
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
   const handleUploadSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!docTitle) return;
@@ -81,8 +91,8 @@ export default function DocumentVaultPage() {
       issuingAuthority: issuingAuthority || 'Government Regulatory Authority',
       issuedDate: new Date().toISOString().split('T')[0],
       validUntil: validUntil || 'Permanent',
-      fileSize: '3.8 MB',
-      fileFormat: 'PDF (Digital Sign)',
+      fileSize: selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB` : '3.8 MB',
+      fileFormat: selectedFile?.name.endsWith('.dwg') ? 'CAD (DWG Dossier)' : 'PDF (Digital Sign)',
       verificationStatus: 'Verified',
       verified: true,
       isDigiLockerLinked: true,
@@ -99,6 +109,7 @@ export default function DocumentVaultPage() {
 
     setDocTitle('');
     setDocNumber('');
+    setSelectedFile(null);
     setShowUploadModal(false);
   };
 
@@ -369,7 +380,13 @@ export default function DocumentVaultPage() {
           <div className="bg-white rounded-lg shadow-2xl border border-slate-300 max-w-lg w-full p-6 animate-in fade-in duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <h3 className="text-base font-bold text-slate-900">Upload Certified Document</h3>
-              <button onClick={() => setShowUploadModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+              <button 
+                onClick={() => {
+                  setSelectedFile(null);
+                  setShowUploadModal(false);
+                }} 
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -427,16 +444,45 @@ export default function DocumentVaultPage() {
                 />
               </div>
 
-              <div className="p-4 border-2 border-dashed border-slate-300 rounded-lg text-center bg-slate-50">
-                <Upload className="w-8 h-8 text-slate-400 mx-auto" />
-                <p className="font-semibold text-slate-700 mt-2">Upload Signed PDF / CAD Dossier</p>
-                <p className="text-[11px] text-slate-500">Supports PDF, DWG up to 25 MB</p>
-              </div>
+              {/* Clickable Dropzone Area with Label Wrapper & Hidden File Input */}
+              <label className="border-2 border-dashed border-slate-300 hover:border-slate-400 bg-slate-50/50 hover:bg-slate-100 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer transition-colors block text-center">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept=".pdf,.dwg"
+                  className="hidden"
+                />
+
+                <Upload className="w-8 h-8 text-slate-400 mb-2" />
+
+                {selectedFile ? (
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded border border-emerald-200">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Selected: {selectedFile.name}</span>
+                    <span className="text-slate-400 font-normal">
+                      ({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs font-bold text-slate-800">
+                      Upload Signed PDF / CAD Dossier
+                    </p>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Supports PDF, DWG up to 25 MB
+                    </p>
+                  </>
+                )}
+              </label>
 
               <div className="pt-3 border-t border-slate-200 flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowUploadModal(false)}
+                  onClick={() => {
+                    setSelectedFile(null);
+                    setShowUploadModal(false);
+                  }}
                   className="px-4 py-2 rounded border border-slate-300 text-slate-700 font-semibold"
                 >
                   Cancel

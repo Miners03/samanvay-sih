@@ -14,7 +14,6 @@ import {
   RegulatoryRule
 } from '../types';
 import { 
-  INITIAL_PROJECT, 
   INITIAL_VAULT_DOCUMENTS, 
   INITIAL_RENEWALS, 
   INITIAL_INCENTIVES, 
@@ -27,6 +26,8 @@ import {
   INITIAL_OFFICER_WORKLOAD 
 } from '../data/officerMockData';
 import { DEPARTMENTS } from '../data/departments';
+import { supabase } from '../supabase/client';
+import { fetchApplicantProject, createApplication } from '../supabase/projectData';
 
 export interface ToastMessage {
   id: string;
@@ -40,9 +41,11 @@ interface AppContextType {
   setRole: (role: UserRole) => void;
   selectedOfficerDept: string;
   setSelectedOfficerDept: (deptId: string) => void;
-  project: Project;
+  project: Project | null;
+  projectExists: boolean;
   projectApprovals: ApprovalRoadmapItem[];
-  setProject: React.Dispatch<React.SetStateAction<Project>>;
+  setProject: React.Dispatch<React.SetStateAction<Project | null>>;
+  refreshProject: () => Promise<void>;
   vaultDocuments: VaultDocument[];
   addVaultDocument: (doc: Omit<VaultDocument, 'id'>) => void;
   renewals: ComplianceRenewal[];
@@ -60,7 +63,7 @@ interface AppContextType {
   simulatePrerequisiteApproval: (approvalId: string) => void;
   startApplication: (approvalId: string, docsUsed: string[]) => void;
   submitSmartRenewal: (renewalId: string, updatedFields?: Record<string, string>) => void;
-  registerProject: (newProjectData: Omit<Project, 'id' | 'referenceNo' | 'progress' | 'createdAt' | 'updatedAt'>) => Project;
+  registerProject: (industryId: string, businessName: string, submittedData: Record<string, any>) => Promise<void>;
   unifiedInspection: UnifiedInspectionProposal;
   proposeUnifiedInspection: (date: string, time: string) => void;
   submitDepartmentInspectionChecklist: (dept: 'fire' | 'pollution' | 'factory', checklist: { id: string; item: string; verified: boolean; remarks?: string }[], officerReport: { observations: string; remarks: string; recommendation: 'Approve' | 'Reject' | 'Request More Info' }) => void;
@@ -79,7 +82,9 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [role, setRoleState] = useState<UserRole>('applicant');
   const [selectedOfficerDept, setSelectedOfficerDept] = useState<string>('dept-spcb');
-  const [project, setProject] = useState<Project>(INITIAL_PROJECT);
+  const [project, setProject] = useState<Project | null>(null);
+  const [projectExists, setProjectExists] = useState(false);
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [vaultDocuments, setVaultDocuments] = useState<VaultDocument[]>(INITIAL_VAULT_DOCUMENTS);
   const [renewals, setRenewals] = useState<ComplianceRenewal[]>(INITIAL_RENEWALS);
   const [incentives, setIncentives] = useState<IncentiveScheme[]>(INITIAL_INCENTIVES);
@@ -90,20 +95,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [regulatoryRules, setRegulatoryRules] = useState<RegulatoryRule[]>(INITIAL_REGULATORY_RULES);
   const [officerWorkload, setOfficerWorkload] = useState(INITIAL_OFFICER_WORKLOAD);
 
+  // Restore role preference only (project now comes from Supabase, not localStorage)
   useEffect(() => {
     try {
       const savedRole = localStorage.getItem('samanvay_role');
       if (savedRole && (savedRole === 'applicant' || savedRole === 'officer' || savedRole === 'admin')) {
         setRoleState(savedRole as UserRole);
       }
-      const savedProject = localStorage.getItem('samanvay_project');
-      if (savedProject) {
-        setProject(JSON.parse(savedProject));
-      }
     } catch (e) {
       console.warn('Could not read from localStorage', e);
     }
   }, []);
+
+  // Track the real Supabase auth session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setAuthUserId(data.session?.user.id ?? null);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUserId(session?.user.id ?? null);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const refreshProject = async () => {
+    if (!authUserId) {
+      setProject(null);
+      setProjectExists(false);
+      return;
+    }
+    const p = await fetchApplicantProject(authUserId);
+    if (p) {
+      setProject(p);
+      setProjectExists(true);
+    } else {
+      setProject(null);
+      setProjectExists(false);
+    }
+  };
+
+  // Load (or clear) the real project whenever the logged-in user changes
+  useEffect(() => {
+    refreshProject();
+  }, [authUserId]);
 
   const setRole = (newRole: UserRole) => {
     setRoleState(newRole);
@@ -144,18 +178,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  const updateProjectAndPersist = (updatedProj: Project) => {
+  // Local-only helper for the still-mock approval actions below (officer approve/reject/query,
+  // inspections, etc). This does NOT write to Supabase — it just keeps the in-memory project
+  // state consistent until those specific flows are wired to real tables.
+  const updateProjectLocally = (updatedProj: Project) => {
     setProject(updatedProj);
-    try {
-      localStorage.setItem('samanvay_project', JSON.stringify(updatedProj));
-    } catch (e) {
-      // ignore
-    }
   };
 
   // LIVE DEMO AUTO-UNLOCK: When a prerequisite is approved, downstream items automatically flip to Can Apply Now
   const simulatePrerequisiteApproval = (approvalId: string) => {
     setProject(prev => {
+      if (!prev) return prev;
       let approvedItemName = '';
       const updatedApprovals = prev.approvals.map(app => {
         if (app.id === approvalId) {
@@ -229,7 +262,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: new Date().toISOString(),
       };
 
-      updateProjectAndPersist(updatedProj);
+      updateProjectLocally(updatedProj);
 
       // Trigger high-priority toasts & notifications for newly unlocked items
       if (newlyUnlocked.length > 0) {
@@ -270,6 +303,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Start Application flow: transitions item from Can Apply Now to Under Review
   const startApplication = (approvalId: string, docsUsed: string[]) => {
     setProject(prev => {
+      if (!prev) return prev;
       let targetName = '';
       const updatedApprovals = prev.approvals.map(app => {
         if (app.id === approvalId) {
@@ -323,7 +357,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         progress: recalculateProgress(updatedApprovals),
         updatedAt: new Date().toISOString(),
       };
-      updateProjectAndPersist(updatedProj);
+      updateProjectLocally(updatedProj);
 
       showToast(
         'Application Lodged Successfully',
@@ -337,6 +371,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const resolveQuery = (approvalId: string, responseNotes: string, attachedDocs: string[]) => {
     setProject(prev => {
+      if (!prev) return prev;
       let targetName = '';
       const updatedApprovals = prev.approvals.map(app => {
         if (app.id === approvalId && app.query) {
@@ -394,7 +429,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         progress: recalculateProgress(updatedApprovals),
         updatedAt: new Date().toISOString(),
       };
-      updateProjectAndPersist(updatedProj);
+      updateProjectLocally(updatedProj);
       return updatedProj;
     });
 
@@ -411,6 +446,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const officerReject = (approvalId: string, reason: string) => {
     setProject(prev => {
+      if (!prev) return prev;
       const updatedApprovals = prev.approvals.map(app => {
         if (app.id === approvalId) {
           return {
@@ -437,7 +473,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         progress: recalculateProgress(updatedApprovals),
         updatedAt: new Date().toISOString(),
       };
-      updateProjectAndPersist(updatedProj);
+      updateProjectLocally(updatedProj);
       return updatedProj;
     });
 
@@ -450,6 +486,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const officerRaiseQuery = (approvalId: string, subject: string, description: string, docs: string[]) => {
     setProject(prev => {
+      if (!prev) return prev;
       const updatedApprovals = prev.approvals.map(app => {
         if (app.id === approvalId) {
           return {
@@ -487,7 +524,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         progress: recalculateProgress(updatedApprovals),
         updatedAt: new Date().toISOString(),
       };
-      updateProjectAndPersist(updatedProj);
+      updateProjectLocally(updatedProj);
       return updatedProj;
     });
 
@@ -500,6 +537,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const officerScheduleInspection = (approvalId: string, date: string, type: 'joint_site_visit' | 'safety_compliance') => {
     setProject(prev => {
+      if (!prev) return prev;
       const updatedApprovals = prev.approvals.map(app => {
         if (app.id === approvalId) {
           return {
@@ -539,7 +577,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         progress: recalculateProgress(updatedApprovals),
         updatedAt: new Date().toISOString(),
       };
-      updateProjectAndPersist(updatedProj);
+      updateProjectLocally(updatedProj);
       return updatedProj;
     });
 
@@ -571,26 +609,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const registerProject = (newProjectData: Omit<Project, 'id' | 'referenceNo' | 'progress' | 'createdAt' | 'updatedAt'>): Project => {
-    const id = `proj-${Date.now()}`;
-    const referenceNo = `SMV/2026/IND/${Math.floor(10000 + Math.random() * 90000)}`;
-    const progress = recalculateProgress(newProjectData.approvals);
-    const newProj: Project = {
-      ...newProjectData,
-      id,
-      referenceNo,
-      progress,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    updateProjectAndPersist(newProj);
-    showToast(
-      'Project Registered & Roadmap Generated',
-      `Approval roadmap successfully initialized for ${newProj.name}. Reference: ${referenceNo}`,
-      'success'
-    );
-    return newProj;
+  // REAL: inserts into Supabase `applications`; the on_application_created trigger
+  // auto-generates `application_approvals` from the chosen industry's templates.
+  const registerProject = async (
+    industryId: string,
+    businessName: string,
+    submittedData: Record<string, any>
+  ): Promise<void> => {
+    if (!authUserId) {
+      showToast('Not Logged In', 'Please log in before registering a project.', 'error');
+      return;
+    }
+    try {
+      await createApplication(authUserId, industryId, businessName, submittedData);
+      await refreshProject();
+      showToast(
+        'Project Registered & Roadmap Generated',
+        `Approval roadmap successfully initialized for ${businessName}.`,
+        'success'
+      );
+    } catch (err: any) {
+      showToast('Registration Failed', err.message ?? 'Could not register project.', 'error');
+    }
   };
 
   const addVaultDocument = (doc: Omit<VaultDocument, 'id'>) => {
@@ -773,8 +813,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         selectedOfficerDept,
         setSelectedOfficerDept,
         project,
-        projectApprovals: project.approvals,
+        projectExists,
+        projectApprovals: project?.approvals ?? [],
         setProject,
+        refreshProject,
         vaultDocuments,
         addVaultDocument,
         renewals,
@@ -817,4 +859,10 @@ export const useApp = () => {
     throw new Error('useApp must be used within an AppProvider');
   }
   return context;
+};
+
+export const useProject = (): Project => {
+  const { project } = useApp();
+  if (!project) throw new Error('useProject used without a registered project');
+  return project;
 };

@@ -2,28 +2,35 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useApp } from '@/lib/context/AppContext';
+import { RequireProject } from '@/components/applicant/RequireProject';
+import { useProject } from '@/lib/context/AppContext';
 import { PageHeader } from '@/components/common/PageHeader';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { 
   Building2, 
   MapPin, 
   PlusCircle, 
-  ArrowRight, 
-  Calendar, 
-  IndianRupee, 
-  FolderKanban, 
-  Layers 
+  ArrowRight
 } from 'lucide-react';
 import { formatCurrencyINR, formatDate } from '@/lib/utils';
 
+// 1. Default Export Wrapper (guards against null project)
 export default function ProjectsPage() {
-  const { project } = useApp();
+  return (
+    <RequireProject>
+      <ProjectsPageContent />
+    </RequireProject>
+  );
+}
+
+// 2. Main Page Content (runs safely when project exists)
+function ProjectsPageContent() {
+  const project = useProject();
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       <PageHeader
-        title="Industrial Projects &amp; Units"
+        title="Industrial Projects & Units"
         subtitle="Comprehensive register of your manufacturing facilities, expansion roadmaps, and statutory portfolios."
         breadcrumbs={[
           { label: 'Dashboard', href: '/applicant/dashboard' },
@@ -47,7 +54,7 @@ export default function ProjectsPage() {
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="bg-gov-blue-primary text-white text-[11px] font-bold px-2 py-0.5 rounded font-mono">
-                  {project.referenceNo}
+                  {project.referenceNo ?? 'N/A'}
                 </span>
                 <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                   Active Single Window File
@@ -69,7 +76,7 @@ export default function ProjectsPage() {
                 <span>•</span>
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                  {project.location.address}, {project.location.district}
+                  {project.location?.address}, {project.location?.district}
                 </span>
               </p>
             </div>
@@ -90,19 +97,19 @@ export default function ProjectsPage() {
             <div className="bg-slate-50 p-3 rounded border border-slate-100">
               <span className="text-slate-500 text-[11px] block">Capital Outlay</span>
               <span className="font-bold text-slate-900 mt-0.5 block">
-                {formatCurrencyINR(project.estimatedInvestmentCrores * 10000000)}
+                {formatCurrencyINR((project.estimatedInvestmentCrores ?? 0) * 10000000)}
               </span>
             </div>
             <div className="bg-slate-50 p-3 rounded border border-slate-100">
               <span className="text-slate-500 text-[11px] block">Land Plot Area</span>
               <span className="font-bold text-slate-900 mt-0.5 block">
-                {project.projectSizeSqMeters.toLocaleString()} Sq.M
+                {project.projectSizeSqMeters?.toLocaleString() ?? 0} Sq.M
               </span>
             </div>
             <div className="bg-slate-50 p-3 rounded border border-slate-100">
               <span className="text-slate-500 text-[11px] block">Pollution Category</span>
               <span className="font-bold text-amber-800 mt-0.5 block">
-                {project.operations.environmental.category} Category
+                {project.operations?.environmental?.category ?? 'N/A'} Category
               </span>
             </div>
             <div className="bg-slate-50 p-3 rounded border border-slate-100">
@@ -114,15 +121,17 @@ export default function ProjectsPage() {
           </div>
 
           {/* Progress */}
-          <div className="pt-2">
-            <ProgressBar
-              completed={project.progress.completed}
-              total={project.progress.total}
-              inProgress={project.progress.inProgress}
-              actionRequired={project.progress.actionRequired}
-              waiting={project.progress.waiting}
-            />
-          </div>
+          {project.progress && (
+            <div className="pt-2">
+              <ProgressBar
+                completed={project.progress.completed}
+                total={project.progress.total}
+                inProgress={project.progress.inProgress}
+                actionRequired={project.progress.actionRequired}
+                waiting={project.progress.waiting}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

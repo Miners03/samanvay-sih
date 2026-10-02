@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { useApp } from '@/lib/context/AppContext';
+import { RequireProject } from '@/components/applicant/RequireProject';
+import { useProject } from '@/lib/context/AppContext';
 import { PageHeader } from '@/components/common/PageHeader';
 import { 
   Building2, 
@@ -14,8 +15,18 @@ import {
   UserCheck 
 } from 'lucide-react';
 
+// 1. Default Export Wrapper (guards against null project)
 export default function ProfilePage() {
-  const { project } = useApp();
+  return (
+    <RequireProject>
+      <ProfilePageContent />
+    </RequireProject>
+  );
+}
+
+// 2. Main Page Content (runs safely when project exists)
+function ProfilePageContent() {
+  const project = useProject();
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">

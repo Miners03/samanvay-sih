@@ -21,7 +21,19 @@ import {
 } from 'lucide-react';
 
 export default function ApplicantDashboardPage() {
-  const { project, renewals, incentives } = useApp();
+  const { project, projectExists, renewals, incentives } = useApp();
+
+  if (!projectExists || !project) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-16 text-center">
+        <h2 className="text-xl font-bold text-slate-900">No project registered yet</h2>
+        <p className="text-sm text-slate-500 mt-2">Register your first project to generate an approval roadmap.</p>
+        <Link href="/applicant/register-project" className="inline-block mt-6 bg-gov-blue-primary text-white font-bold px-5 py-2.5 rounded">
+          Register New Project
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
@@ -40,7 +52,7 @@ export default function ApplicantDashboardPage() {
             Namaste, {project.contactPerson}
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5 max-w-2xl">
-            Manage your projects, approvals and compliance from one place. Track cross-departmental clearances in real time with statutory SLA protection.
+            
           </p>
         </div>
 
